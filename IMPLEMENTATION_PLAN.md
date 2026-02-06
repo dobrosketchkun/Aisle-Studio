@@ -8,30 +8,30 @@ Step-by-step execution checklist. First target: working chat with `google/gemini
 
 The skeleton has CRUD for chats but **zero** LLM integration. We need a streaming proxy endpoint.
 
-- [ ] **1.1** Add `python-dotenv` and `httpx` to `requirements.txt`
-- [ ] **1.2** Load `.env` in `main.py` (`from dotenv import load_dotenv; load_dotenv()`)
-- [ ] **1.3** Read `OPENROUTER_API_KEY` from env at startup, fail loudly if missing
-- [ ] **1.4** Create `POST /api/chats/{id}/generate` endpoint that:
-  - [ ] Reads the chat JSON (messages + settings)
-  - [ ] Builds the OpenRouter request body:
+- [x] **1.1** Add `python-dotenv` and `httpx` to `requirements.txt`
+- [x] **1.2** Load `.env` in `main.py` (`from dotenv import load_dotenv; load_dotenv()`)
+- [x] **1.3** Read `OPENROUTER_API_KEY` from env at startup, fail loudly if missing
+- [x] **1.4** Create `POST /api/chats/{id}/generate` endpoint that:
+  - [x] Reads the chat JSON (messages + settings)
+  - [x] Builds the OpenRouter request body:
     - `model`: from `settings.provider` + `settings.model` (e.g. `"google/gemini-3-pro-preview"`)
     - `messages`: convert chat messages to OpenRouter format (`role: "user"/"assistant"`, content)
     - `system`: from `settings.system_instructions` (if non-empty)
     - `temperature`, `top_p`, `top_k`, `max_tokens`: from `settings.params`
     - `stream: true`
-  - [ ] Sends request to `https://openrouter.ai/api/v1/chat/completions` with `Authorization: Bearer $KEY`
-  - [ ] Returns a `StreamingResponse` (SSE) that forwards OpenRouter's SSE chunks as-is
-  - [ ] On stream end, auto-appends the model message (content + thoughts if present) to the chat JSON and saves
-- [ ] **1.5** Handle errors gracefully:
-  - [ ] Missing API key → 500 with clear message
-  - [ ] OpenRouter HTTP errors (401, 429, 5xx) → forward status + error message to client as SSE `error` event
-  - [ ] Network failures → SSE error event
-- [ ] **1.6** Update `ChatSettings` pydantic model to match the new schema:
+  - [x] Sends request to `https://openrouter.ai/api/v1/chat/completions` with `Authorization: Bearer $KEY`
+  - [x] Returns a `StreamingResponse` (SSE) that forwards OpenRouter's SSE chunks as-is
+  - [x] On stream end, auto-appends the model message (content + thoughts if present) to the chat JSON and saves
+- [x] **1.5** Handle errors gracefully:
+  - [x] Missing API key → 500 with clear message
+  - [x] OpenRouter HTTP errors (401, 429, 5xx) → forward status + error message to client as SSE `error` event
+  - [x] Network failures → SSE error event
+- [x] **1.6** Update `ChatSettings` pydantic model to match the new schema:
   - `provider: str = "openrouter"`
   - `model: str = "google/gemini-3-pro-preview"`
   - `system_instructions: str = ""`
   - `params: dict = {}` (dynamic key-value, not hardcoded fields)
-- [ ] **1.7** Update `POST /api/chats` (create) to use new default settings structure:
+- [x] **1.7** Update `POST /api/chats` (create) to use new default settings structure:
   ```json
   {
     "provider": "openrouter",
@@ -40,8 +40,8 @@ The skeleton has CRUD for chats but **zero** LLM integration. We need a streamin
     "params": { "temperature": 1.0, "top_p": 1.0, "max_tokens": 4096 }
   }
   ```
-- [ ] **1.8** Update sample chat JSON to match new settings schema
-- [ ] **1.9** Test the endpoint manually with curl — confirm SSE chunks arrive
+- [x] **1.8** Update sample chat JSON to match new settings schema
+- [x] **1.9** Test the endpoint manually with curl — confirm SSE chunks arrive
 
 ---
 
