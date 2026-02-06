@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local AI Studio</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+
+  <!-- Markdown / Code / Math -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div id="app" class="app-layout">
+    <!-- ============ LEFT SIDEBAR ============ -->
+    <nav id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-wrapper">
+          <span class="material-symbols-outlined logo-icon">neurology</span>
+          <span class="logo-text">Local AI Studio</span>
+        </div>
+      </div>
+
+      <div class="sidebar-nav">
+        <!-- New Chat -->
+        <button id="btn-new-chat" class="nav-item nav-item-new-chat">
+          <span class="material-symbols-outlined">add</span>
+          <span class="nav-item-text">New chat</span>
+        </button>
+
+        <div class="nav-divider"></div>
+
+        <!-- Playground section with history -->
+        <div class="nav-section">
+          <div class="nav-section-header">
+            <span class="material-symbols-outlined">chat_bubble</span>
+            <span class="nav-item-text">Chats</span>
+          </div>
+          <ul id="chat-history-list" class="chat-history-list">
+            <!-- Populated by sidebar.js -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button class="nav-item" id="btn-settings-toggle">
+          <span class="material-symbols-outlined">settings</span>
+          <span class="nav-item-text">Settings</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="main-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button id="btn-sidebar-toggle" class="icon-btn" title="Toggle sidebar">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <div class="title-area">
+            <h1 id="chat-title" class="chat-title" contenteditable="false">Untitled chat</h1>
+            <button id="btn-edit-title" class="icon-btn icon-btn-sm" title="Edit title">
+              <span class="material-symbols-outlined">edit</span>
+            </button>
+          </div>
+          <span id="token-count" class="token-count"></span>
+        </div>
+        <div class="toolbar-right">
+          <button id="btn-right-panel-toggle" class="icon-btn" title="Run settings">
+            <span class="material-symbols-outlined">tune</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat messages area -->
+      <div id="chat-messages" class="chat-messages">
+        <!-- Populated by chat.js -->
+        <div id="empty-state" class="empty-state">
+          <span class="material-symbols-outlined empty-icon">chat_bubble_outline</span>
+          <p>Start a conversation</p>
+        </div>
+      </div>
+
+      <!-- Disclaimer -->
+      <div class="disclaimer" id="disclaimer" style="display:none;">
+        <span class="material-symbols-outlined">info</span>
+        <span>LLMs may make mistakes, so double-check outputs.</span>
+      </div>
+
+      <!-- Input footer -->
+      <footer class="chat-footer">
+        <div class="footer-fade"></div>
+        <div class="prompt-box">
+          <textarea
+            id="prompt-input"
+            class="prompt-textarea"
+            rows="1"
+            placeholder="Start typing a prompt, use alt + enter to append"
+            aria-label="Enter a prompt"
+          ></textarea>
+          <div class="prompt-buttons">
+            <div class="prompt-buttons-left">
+              <button class="prompt-btn" title="API Key">
+                <span class="material-symbols-outlined">key_off</span>
+              </button>
+              <button class="prompt-btn prompt-btn-tools" title="Tools">
+                <span class="material-symbols-outlined">widgets</span>
+                <span>Tools</span>
+              </button>
+            </div>
+            <div class="prompt-buttons-right">
+              <button class="prompt-btn" title="Attach files">
+                <span class="material-symbols-outlined">add_circle</span>
+              </button>
+              <button id="btn-run" class="run-btn" title="Run">
+                <span class="run-btn-label">Run</span>
+                <span class="material-symbols-outlined">keyboard_return</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- ============ RIGHT PANEL ============ -->
+    <aside id="right-panel" class="right-panel">
+      <div class="panel-header">
+        <h2>Run settings</h2>
+        <div class="panel-header-actions">
+          <button class="icon-btn icon-btn-sm" title="Get code">
+            <span class="material-symbols-outlined">code</span>
+          </button>
+          <button class="icon-btn icon-btn-sm" title="Reset settings">
+            <span class="material-symbols-outlined">reset_settings</span>
+          </button>
+          <button id="btn-close-panel" class="icon-btn icon-btn-sm" title="Close">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <!-- Model selector -->
+        <div class="settings-card" id="model-selector">
+          <div class="settings-card-title">Gemini 3 Pro Preview</div>
+          <div class="settings-card-subtitle">gemini-3-pro-preview</div>
+          <div class="settings-card-desc">Most intelligent model</div>
+        </div>
+
+        <!-- System instructions -->
+        <div class="settings-card" id="system-instructions-card">
+          <div class="settings-card-title">System instructions</div>
+          <div class="settings-card-subtitle">Optional tone and style instructions for the model</div>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Temperature -->
+        <div class="settings-item">
+          <label class="settings-label">Temperature</label>
+          <div class="slider-row">
+            <input type="range" id="temperature-slider" class="settings-slider" min="0" max="2" step="0.05" value="1">
+            <input type="number" id="temperature-value" class="slider-value-input" min="0" max="2" step="0.05" value="1">
+          </div>
+        </div>
+
+        <!-- Media resolution -->
+        <div class="settings-item">
+          <label class="settings-label">Media resolution</label>
+          <select id="media-resolution" class="settings-select">
+            <option value="Default">Default</option>
+            <option value="Low">Low</option>
+            <option value="High">High</option>
+          </select>
+        </div>
+
+        <!-- Thinking level -->
+        <div class="settings-item">
+          <label class="settings-label">Thinking level</label>
+          <select id="thinking-level" class="settings-select">
+            <option value="None">None</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High" selected>High</option>
+          </select>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Tools group -->
+        <div class="settings-group">
+          <button class="settings-group-header" id="tools-group-toggle">
+            <span class="material-symbols-outlined expand-icon">expand_more</span>
+            <span class="group-title">Tools</span>
+          </button>
+          <div class="settings-group-body" id="tools-group-body">
+            <div class="settings-toggle-item">
+              <span>Structured outputs</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-structured">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-toggle-item">
+              <span>Code execution</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-code-exec">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-toggle-item">
+              <span>URL context</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-url-context">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Context menu template -->
+  <div id="context-menu" class="context-menu" style="display:none;">
+    <button class="context-menu-item" data-action="delete">
+      <span class="material-symbols-outlined">delete</span>
+      <span>Delete</span>
+    </button>
+    <button class="context-menu-item" data-action="branch">
+      <span class="material-symbols-outlined">fork_right</span>
+      <span>Branch from here</span>
+    </button>
+    <button class="context-menu-item" data-action="copy-text">
+      <span class="material-symbols-outlined">content_copy</span>
+      <span>Copy as text</span>
+    </button>
+    <button class="context-menu-item" data-action="copy-md">
+      <span class="material-symbols-outlined">markdown</span>
+      <span>Copy as markdown</span>
+    </button>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/sidebar.js"></script>
+  <script src="/static/js/chat.js"></script>
+  <script src="/static/js/settings.js"></script>
+</body>
+</html>
