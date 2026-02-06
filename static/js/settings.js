@@ -279,6 +279,8 @@ const Settings = {
       });
     };
 
+    let dragSrcId = null;
+
     const renderModels = () => {
       const provider = App.providers[activeProvider];
       if (!provider) { listContainer.innerHTML = ''; return; }
@@ -289,13 +291,17 @@ const Settings = {
           const icons = { image: 'image', video: 'videocam', audio: 'mic' };
           return `<span class="model-cap-badge" title="${c}"><span class="material-symbols-outlined">${icons[c] || 'attachment'}</span></span>`;
         }).join('');
+        const thinkingBadge = (m.tools || []).some(t => t.key === 'thinking')
+          ? '<span class="model-cap-badge thinking-badge" title="Thinking"><span class="material-symbols-outlined">psychology</span></span>'
+          : '';
         const deleteBtn = isActive ? '' : `<button class="model-picker-delete" data-model-id="${m.id}" title="Remove model"><span class="material-symbols-outlined">delete</span></button>`;
         return `
-          <div class="model-picker-item${isActive ? ' active' : ''}" data-model-id="${m.id}">
+          <div class="model-picker-item${isActive ? ' active' : ''}" data-model-id="${m.id}" draggable="true">
+            <span class="drag-handle material-symbols-outlined" title="Drag to reorder">drag_indicator</span>
             <div class="model-picker-item-body" data-model-id="${m.id}">
               <div class="model-picker-item-header">
                 <div class="model-picker-item-name">${m.name}</div>
-                ${caps ? `<div class="model-cap-badges">${caps}</div>` : ''}
+                <div class="model-cap-badges">${thinkingBadge}${caps}</div>
               </div>
               <div class="model-picker-item-id">${m.id}</div>
               <div class="model-picker-item-desc">${m.description || ''}</div>
@@ -325,6 +331,69 @@ const Settings = {
             renderModels();
           } catch (err) {
             console.error('Delete model failed:', err);
+          }
+        });
+      });
+
+      // Drag-and-drop reordering
+      listContainer.querySelectorAll('.model-picker-item').forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+          dragSrcId = item.dataset.modelId;
+          item.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+
+        item.addEventListener('dragend', () => {
+          item.classList.remove('dragging');
+          listContainer.querySelectorAll('.model-picker-item').forEach(el => el.classList.remove('drag-over-above', 'drag-over-below'));
+          dragSrcId = null;
+        });
+
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (item.dataset.modelId === dragSrcId) return;
+          const rect = item.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          item.classList.toggle('drag-over-above', e.clientY < midY);
+          item.classList.toggle('drag-over-below', e.clientY >= midY);
+        });
+
+        item.addEventListener('dragleave', () => {
+          item.classList.remove('drag-over-above', 'drag-over-below');
+        });
+
+        item.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          item.classList.remove('drag-over-above', 'drag-over-below');
+          const targetId = item.dataset.modelId;
+          if (!dragSrcId || dragSrcId === targetId) return;
+
+          const provider = App.providers[activeProvider];
+          const models = provider.models;
+          const srcIdx = models.findIndex(m => m.id === dragSrcId);
+          let tgtIdx = models.findIndex(m => m.id === targetId);
+          if (srcIdx === -1 || tgtIdx === -1) return;
+
+          // Determine insert position based on cursor
+          const rect = item.getBoundingClientRect();
+          const insertAfter = e.clientY >= rect.top + rect.height / 2;
+          if (insertAfter) tgtIdx++;
+
+          // Reorder
+          const [moved] = models.splice(srcIdx, 1);
+          const newIdx = tgtIdx > srcIdx ? tgtIdx - 1 : tgtIdx;
+          models.splice(newIdx, 0, moved);
+
+          renderModels();
+
+          // Persist to backend
+          try {
+            const ids = models.map(m => m.id);
+            const updated = await App.api('PUT', `/api/providers/${activeProvider}/models/reorder`, { model_ids: ids });
+            App.providers[activeProvider] = updated;
+          } catch (err) {
+            console.error('Reorder failed:', err);
           }
         });
       });
@@ -395,6 +464,16 @@ const Settings = {
       return caps;
     };
 
+    // Detect if model supports explicit thinking toggle
+    const needsThinkingToggle = (model) => {
+      const params = model.supported_parameters || [];
+      if (!params.includes('reasoning')) return false;
+      // Models that think by default don't need the toggle
+      const id = (model.id || '').toLowerCase();
+      const autoThink = ['deepseek-r1', 'deepseek-reasoner', 'qwq'];
+      return !autoThink.some(p => id.includes(p));
+    };
+
     const formatPrice = (price) => {
       if (!price) return '';
       const p = parseFloat(price);
@@ -429,6 +508,7 @@ const Settings = {
           const icons = { image: 'image', video: 'videocam', audio: 'mic' };
           return `<span class="model-cap-badge" title="${c}"><span class="material-symbols-outlined">${icons[c]}</span></span>`;
         }).join('');
+        const thinkingHtml = needsThinkingToggle(m) ? '<span class="model-cap-badge thinking-badge" title="Thinking"><span class="material-symbols-outlined">psychology</span></span>' : '';
         const ctx = m.context_length ? `${(m.context_length / 1000).toFixed(0)}k ctx` : '';
         const price = formatPrice(m.pricing?.prompt);
         const meta = [ctx, price].filter(Boolean).join(' · ');
@@ -439,7 +519,7 @@ const Settings = {
               <div class="add-model-item-meta">${m.id}${meta ? ' · ' + meta : ''}</div>
             </div>
             <div class="add-model-item-right">
-              ${capsHtml}
+              ${thinkingHtml}${capsHtml}
               ${already
                 ? '<span class="add-model-added">Added</span>'
                 : '<button class="add-model-btn-add" title="Add"><span class="material-symbols-outlined">add_circle</span></button>'
@@ -469,13 +549,18 @@ const Settings = {
             { key: 'max_tokens', label: 'Max output tokens', type: 'number', min: 1, max: 65536, default: 65536 },
           ];
 
+          const tools = [];
+          if (needsThinkingToggle(model)) {
+            tools.push({ key: 'thinking', label: 'Thinking' });
+          }
+
           const newModel = {
             id: model.id,
             name: model.name || model.id,
             description: (model.description || '').substring(0, 100),
             multimodal: parseModality(model.architecture?.modality),
             params: JSON.parse(JSON.stringify(defaultParams)),
-            tools: [],
+            tools,
           };
 
           // Update max_tokens if context_length is available

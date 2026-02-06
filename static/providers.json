@@ -64,9 +64,9 @@
         ]
       },
       {
-        "id": "anthropic/claude-opus-4",
-        "name": "Claude Opus 4",
-        "description": "Most capable Anthropic model",
+        "id": "anthropic/claude-opus-4.6",
+        "name": "Anthropic: Claude Opus 4.6",
+        "description": "Opus 4.6 is Anthropic's strongest model for coding and long-running professional tasks. It is built ",
         "multimodal": [
           "image"
         ],
@@ -78,7 +78,7 @@
             "min": 0,
             "max": 2,
             "step": 0.05,
-            "default": 1.0
+            "default": 1
           },
           {
             "key": "top_p",
@@ -87,7 +87,7 @@
             "min": 0,
             "max": 1,
             "step": 0.05,
-            "default": 1.0
+            "default": 1
           },
           {
             "key": "top_k",
@@ -102,17 +102,26 @@
             "label": "Max output tokens",
             "type": "number",
             "min": 1,
-            "max": 65536,
+            "max": 1000000,
             "default": 65536
           }
         ],
-        "tools": []
+        "tools": [
+          {
+            "key": "thinking",
+            "label": "Thinking"
+          }
+        ]
       },
       {
-        "id": "deepseek/deepseek-r1",
-        "name": "DeepSeek R1",
-        "description": "Open-source reasoning model",
-        "multimodal": [],
+        "id": "google/gemini-3-flash-preview",
+        "name": "Google: Gemini 3 Flash Preview",
+        "description": "Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, mu",
+        "multimodal": [
+          "image",
+          "video",
+          "audio"
+        ],
         "params": [
           {
             "key": "temperature",
@@ -121,7 +130,7 @@
             "min": 0,
             "max": 2,
             "step": 0.05,
-            "default": 1.0
+            "default": 1
           },
           {
             "key": "top_p",
@@ -130,7 +139,7 @@
             "min": 0,
             "max": 1,
             "step": 0.05,
-            "default": 1.0
+            "default": 1
           },
           {
             "key": "top_k",
@@ -145,8 +154,8 @@
             "label": "Max output tokens",
             "type": "number",
             "min": 1,
-            "max": 65536,
-            "default": 65536
+            "max": 1048576,
+            "default": 1048576
           }
         ],
         "tools": []
@@ -197,14 +206,10 @@
         "tools": []
       },
       {
-        "id": "google/gemini-3-flash-preview",
-        "name": "Google: Gemini 3 Flash Preview",
-        "description": "Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, mu",
-        "multimodal": [
-          "image",
-          "video",
-          "audio"
-        ],
+        "id": "deepseek/deepseek-r1",
+        "name": "DeepSeek R1",
+        "description": "Open-source reasoning model",
+        "multimodal": [],
         "params": [
           {
             "key": "temperature",
@@ -213,7 +218,7 @@
             "min": 0,
             "max": 2,
             "step": 0.05,
-            "default": 1
+            "default": 1.0
           },
           {
             "key": "top_p",
@@ -222,7 +227,7 @@
             "min": 0,
             "max": 1,
             "step": 0.05,
-            "default": 1
+            "default": 1.0
           },
           {
             "key": "top_k",
@@ -237,8 +242,8 @@
             "label": "Max output tokens",
             "type": "number",
             "min": 1,
-            "max": 1048576,
-            "default": 1048576
+            "max": 65536,
+            "default": 65536
           }
         ],
         "tools": []

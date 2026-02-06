@@ -437,12 +437,19 @@ const Chat = {
 
   _pendingStream: null,
   _streamRenderTimer: null,
+  _userScrolledUp: false,
+  _programmaticScroll: false,
+  _scrollHandler: null,
 
   /** Append a placeholder model turn for streaming */
   appendStreamingTurn(msgId) {
     const container = document.getElementById('chat-messages');
     const emptyState = document.getElementById('empty-state');
     if (emptyState) emptyState.style.display = 'none';
+
+    // Reset scroll tracking for this generation
+    this._userScrolledUp = false;
+    this._setupScrollListener();
 
     const turnHtml = `
       <div class="chat-turn" data-msg-id="${msgId}">
@@ -552,11 +559,37 @@ const Chat = {
       clearTimeout(this._streamRenderTimer);
       this._streamRenderTimer = null;
     }
+    this._removeScrollListener();
+    this._userScrolledUp = false;
   },
 
   scrollToBottom() {
+    if (this._userScrolledUp) return;
     const container = document.getElementById('chat-messages');
+    this._programmaticScroll = true;
     container.scrollTop = container.scrollHeight;
+    requestAnimationFrame(() => { this._programmaticScroll = false; });
+  },
+
+  _setupScrollListener() {
+    this._removeScrollListener();
+    const container = document.getElementById('chat-messages');
+    this._scrollHandler = () => {
+      if (this._programmaticScroll || !App.isGenerating) return;
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+      if (!atBottom) {
+        this._userScrolledUp = true;
+      }
+    };
+    container.addEventListener('scroll', this._scrollHandler);
+  },
+
+  _removeScrollListener() {
+    if (this._scrollHandler) {
+      const container = document.getElementById('chat-messages');
+      container.removeEventListener('scroll', this._scrollHandler);
+      this._scrollHandler = null;
+    }
   },
 
   /* ---- File upload & preview ---- */

@@ -429,7 +429,16 @@ async def generate_chat_response(chat_id: str):
         request_body["system"] = system_instructions
 
     if isinstance(params, dict):
-        request_body.update(params)
+        # Work on a copy so we don't mutate the saved chat settings
+        api_params = dict(params)
+        # Extract thinking toggle — not a raw API param
+        thinking_enabled = api_params.pop("thinking", False)
+        # Remove tool toggles that aren't raw API params
+        for k in ("structured_output", "code_execution", "url_context"):
+            api_params.pop(k, None)
+        request_body.update(api_params)
+        if thinking_enabled:
+            request_body["reasoning"] = {"effort": "high"}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -617,6 +626,29 @@ def delete_model_from_provider(provider: str, model_id: str):
     if len(new_models) == len(models):
         raise HTTPException(status_code=404, detail="Model not found")
     providers[provider]["models"] = new_models
+    _write_providers(providers)
+    return providers[provider]
+
+
+class ReorderModelsRequest(BaseModel):
+    model_ids: list[str]
+
+
+@app.put("/api/providers/{provider}/models/reorder")
+def reorder_models(provider: str, req: ReorderModelsRequest):
+    """Reorder models in a provider."""
+    providers = _load_providers()
+    if provider not in providers:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    models = providers[provider].get("models", [])
+    model_map = {m["id"]: m for m in models}
+    reordered = []
+    for mid in req.model_ids:
+        if mid in model_map:
+            reordered.append(model_map.pop(mid))
+    # Append any remaining models not in the reorder list
+    reordered.extend(model_map.values())
+    providers[provider]["models"] = reordered
     _write_providers(providers)
     return providers[provider]
 
