@@ -161,6 +161,8 @@ def _default_chat_settings() -> dict:
         key = p.get("key")
         if isinstance(key, str) and "default" in p:
             params_defaults[key] = p["default"]
+    if any(t.get("key") == "thinking" for t in first_model.get("tools", [])):
+        params_defaults["thinking"] = True
     if params_defaults:
         default["params"] = params_defaults
 
@@ -177,6 +179,21 @@ def _get_model_capabilities(settings: dict) -> set[str]:
         if m.get("id") == model_id:
             return set(m.get("multimodal", []))
     return set()
+
+
+def _model_supports_tool(settings: dict, tool_key: str) -> bool:
+    providers = _load_providers()
+    provider_key = settings.get("provider", "openrouter")
+    model_id = settings.get("model", "")
+    provider = providers.get(provider_key, {})
+    for m in provider.get("models", []):
+        if m.get("id") != model_id:
+            continue
+        for t in m.get("tools", []):
+            if t.get("key") == tool_key:
+                return True
+        return False
+    return False
 
 
 # Extensions / MIME types we treat as readable text and inject as content
@@ -367,6 +384,11 @@ def create_chat(payload: CreateChatRequest | None = None):
         else {}
     )
     settings = {**default_settings, **requested_settings}
+    merged_params = dict(default_settings.get("params", {}))
+    requested_params = requested_settings.get("params")
+    if isinstance(requested_params, dict):
+        merged_params.update(requested_params)
+    settings["params"] = merged_params
 
     # Keep params sane: if missing/invalid, fall back to defaults.
     if not isinstance(settings.get("params"), dict):
@@ -485,7 +507,7 @@ async def generate_chat_response(chat_id: str):
         # Work on a copy so we don't mutate the saved chat settings
         api_params = dict(params)
         # Extract thinking toggle — not a raw API param
-        thinking_enabled = api_params.pop("thinking", False)
+        thinking_enabled = bool(api_params.pop("thinking", _model_supports_tool(settings, "thinking")))
         # Remove tool toggles that aren't raw API params
         for k in ("structured_output", "code_execution", "url_context"):
             api_params.pop(k, None)

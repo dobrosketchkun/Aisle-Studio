@@ -40,6 +40,10 @@ const Settings = {
     return provider?.models.find(m => m.id === s.model) || null;
   },
 
+  _defaultToolValue(tool) {
+    return tool?.key === 'thinking';
+  },
+
   /** Render all parameter controls from model schema */
   renderDynamicControls() {
     const container = document.getElementById('dynamic-settings');
@@ -178,7 +182,7 @@ const Settings = {
     body.className = 'settings-group-body';
 
     for (const tool of tools) {
-      const checked = params[tool.key] || false;
+      const checked = params[tool.key] !== undefined ? !!params[tool.key] : this._defaultToolValue(tool);
       const item = document.createElement('div');
       item.className = 'settings-toggle-item';
       item.dataset.paramKey = tool.key;
@@ -222,6 +226,9 @@ const Settings = {
     const defaults = {};
     for (const p of model.params || []) {
       defaults[p.key] = p.default;
+    }
+    for (const t of model.tools || []) {
+      defaults[t.key] = this._defaultToolValue(t);
     }
     App.currentChat.settings.params = defaults;
     this.renderDynamicControls();
@@ -616,6 +623,9 @@ const Settings = {
       const defaults = {};
       for (const p of model.params || []) {
         defaults[p.key] = p.default;
+      }
+      for (const t of model.tools || []) {
+        defaults[t.key] = this._defaultToolValue(t);
       }
       App.currentChat.settings.params = defaults;
     }
