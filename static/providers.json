@@ -6,47 +6,56 @@
       {
         "id": "google/gemini-3-pro-preview",
         "name": "Gemini 3 Pro Preview",
-        "description": "Most intelligent model"
+        "description": "Most intelligent model",
+        "multimodal": ["image", "video", "audio"]
       },
       {
         "id": "google/gemini-2.5-flash-preview",
         "name": "Gemini 2.5 Flash Preview",
-        "description": "Fast and efficient"
+        "description": "Fast and efficient",
+        "multimodal": ["image", "video", "audio"]
       },
       {
         "id": "google/gemini-2.5-pro-preview",
         "name": "Gemini 2.5 Pro Preview",
-        "description": "Balanced performance and reasoning"
+        "description": "Balanced performance and reasoning",
+        "multimodal": ["image", "video", "audio"]
       },
       {
         "id": "anthropic/claude-sonnet-4",
         "name": "Claude Sonnet 4",
-        "description": "Balanced performance"
+        "description": "Balanced performance",
+        "multimodal": ["image"]
       },
       {
         "id": "anthropic/claude-opus-4",
         "name": "Claude Opus 4",
-        "description": "Most capable Anthropic model"
+        "description": "Most capable Anthropic model",
+        "multimodal": ["image"]
       },
       {
         "id": "openai/gpt-4o",
         "name": "GPT-4o",
-        "description": "Versatile multimodal model"
+        "description": "Versatile multimodal model",
+        "multimodal": ["image"]
       },
       {
         "id": "openai/o3-mini",
         "name": "o3-mini",
-        "description": "Fast reasoning model"
+        "description": "Fast reasoning model",
+        "multimodal": []
       },
       {
         "id": "deepseek/deepseek-r1",
         "name": "DeepSeek R1",
-        "description": "Open-source reasoning model"
+        "description": "Open-source reasoning model",
+        "multimodal": []
       },
       {
         "id": "meta-llama/llama-4-maverick",
         "name": "Llama 4 Maverick",
-        "description": "Open-source foundation model"
+        "description": "Open-source foundation model",
+        "multimodal": ["image"]
       }
     ],
     "params": [
@@ -98,12 +107,14 @@
       {
         "id": "gemini-3-pro-preview",
         "name": "Gemini 3 Pro Preview",
-        "description": "Most intelligent model"
+        "description": "Most intelligent model",
+        "multimodal": ["image", "video", "audio"]
       },
       {
         "id": "gemini-2.5-flash-preview",
         "name": "Gemini 2.5 Flash Preview",
-        "description": "Fast and efficient"
+        "description": "Fast and efficient",
+        "multimodal": ["image", "video", "audio"]
       }
     ],
     "params": [
@@ -154,12 +165,14 @@
       {
         "id": "claude-sonnet-4",
         "name": "Claude Sonnet 4",
-        "description": "Balanced performance"
+        "description": "Balanced performance",
+        "multimodal": ["image"]
       },
       {
         "id": "claude-opus-4",
         "name": "Claude Opus 4",
-        "description": "Most capable model"
+        "description": "Most capable model",
+        "multimodal": ["image"]
       }
     ],
     "params": [
@@ -207,12 +220,14 @@
       {
         "id": "gpt-4o",
         "name": "GPT-4o",
-        "description": "Versatile multimodal model"
+        "description": "Versatile multimodal model",
+        "multimodal": ["image"]
       },
       {
         "id": "o3-mini",
         "name": "o3-mini",
-        "description": "Fast reasoning model"
+        "description": "Fast reasoning model",
+        "multimodal": []
       }
     ],
     "params": [

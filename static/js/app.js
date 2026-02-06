@@ -9,6 +9,7 @@ const App = {
   providers: {},       // loaded from providers.json
   isGenerating: false,
   abortController: null,
+  pendingFiles: [],    // files uploaded but not yet sent with a message
 
   /** API helpers */
   async api(method, path, body) {
@@ -80,22 +81,30 @@ const App = {
   updateTokenCount() {
     const el = document.getElementById('token-count');
     if (!this.currentChat) { el.textContent = ''; return; }
-    // Rough estimate: ~4 chars per token
-    const text = this.currentChat.messages.map(m =>
-      (m.content || '') + (m.thoughts || '')
-    ).join('');
-    const tokens = Math.round(text.length / 4);
+    let tokens = 0;
+    for (const m of this.currentChat.messages) {
+      // Text tokens (~4 chars per token)
+      const text = (m.content || '') + (m.thoughts || '');
+      tokens += Math.round(text.length / 4);
+      // File tokens
+      if (m.files && typeof Chat !== 'undefined') {
+        for (const f of m.files) {
+          tokens += Chat._estimateTokens(f);
+        }
+      }
+    }
     el.textContent = tokens > 0 ? `~${tokens.toLocaleString()} tokens` : '';
   },
 
   /** Add a user message to the current chat */
-  async addUserMessage(content) {
+  async addUserMessage(content, files = []) {
     if (!this.currentChat) return;
     this.currentChat.messages.push({
       id: crypto.randomUUID(),
       role: 'user',
       content: content,
       thoughts: '',
+      files: files,
     });
     await this.saveChat();
     Chat.render();
@@ -106,6 +115,21 @@ const App = {
   async deleteMessage(msgId) {
     if (!this.currentChat) return;
     this.currentChat.messages = this.currentChat.messages.filter(m => m.id !== msgId);
+    await this.saveChat();
+    Chat.render();
+    this.updateTokenCount();
+  },
+
+  /** Remove a single file from a message */
+  async deleteFileFromMessage(msgId, fileIndex) {
+    if (!this.currentChat) return;
+    const msg = this.currentChat.messages.find(m => m.id === msgId);
+    if (!msg || !msg.files) return;
+    msg.files.splice(fileIndex, 1);
+    // If message has no content and no files left, delete the whole message
+    if (!msg.content && msg.files.length === 0) {
+      return this.deleteMessage(msgId);
+    }
     await this.saveChat();
     Chat.render();
     this.updateTokenCount();

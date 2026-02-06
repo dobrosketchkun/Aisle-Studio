@@ -1415,10 +1415,38 @@ ul { list-style: none; }
   outline: 1px solid var(--accent-blue);
 }
 
+.model-picker-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .model-picker-item-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
+}
+
+.model-cap-badges {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.model-cap-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--surface-container);
+  color: var(--text-secondary);
+}
+
+.model-cap-badge .material-symbols-outlined {
+  font-size: 14px;
 }
 
 .model-picker-item-id {
@@ -1500,4 +1528,385 @@ ul { list-style: none; }
     z-index: 20;
     box-shadow: 4px 0 24px rgba(0,0,0,0.3);
   }
+}
+
+/* ============================================================
+   PENDING FILES (prompt area chips)
+   ============================================================ */
+.pending-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.pending-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-subtle);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text);
+  max-width: 250px;
+}
+
+.pending-file-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.pending-file-icon {
+  font-size: 20px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.pending-file-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pending-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.pending-file-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.pending-file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.pending-file-remove:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.pending-file-remove .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* Pending video thumbnail (canvas) */
+.pending-video-thumb {
+  border-radius: 6px;
+  background: var(--surface-container);
+}
+
+/* Settings gear button on pending video chips */
+.pending-file-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.pending-file-settings:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.pending-file-settings .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* Video chip clickable cursor */
+.pending-file-chip[onclick] {
+  cursor: pointer;
+}
+
+/* Drag-and-drop indicator */
+.prompt-box.drag-over {
+  border-color: var(--accent-blue);
+  background: rgba(135, 169, 255, 0.08);
+}
+
+/* ============================================================
+   FILE CARDS (in chat messages) — each file is its own block
+   ============================================================ */
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-subtle);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+  text-decoration: none;
+  color: var(--text);
+  max-width: 300px;
+  margin-bottom: 6px;
+  position: relative;
+}
+
+.file-card:hover {
+  background: var(--surface-container-high);
+  border-color: var(--outline);
+}
+
+.file-card .material-symbols-outlined {
+  font-size: 24px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* Per-file delete button */
+.file-card-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition);
+  z-index: 2;
+}
+
+.file-card:hover .file-card-delete {
+  opacity: 1;
+}
+
+.file-card-delete:hover {
+  background: rgba(220,38,38,0.8);
+}
+
+.file-card-delete .material-symbols-outlined {
+  font-size: 14px;
+  color: #fff;
+}
+
+.file-card-info {
+  min-width: 0;
+}
+
+.file-card-name {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-card-size {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Image file cards */
+.file-card-image {
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  max-width: 280px;
+}
+
+.file-card-image img {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.file-card-image .file-card-name {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* Video file card with thumbnail */
+.file-card-video {
+  gap: 10px;
+  cursor: pointer;
+}
+
+.file-card-video-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 80px;
+  height: 60px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+}
+
+.chat-video-thumb {
+  width: 80px;
+  height: 60px;
+  display: block;
+}
+
+.file-video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px !important;
+  color: #fff !important;
+  opacity: 0.85;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+
+/* Audio file cards */
+.file-card-audio {
+  flex-direction: column;
+  gap: 8px;
+  min-width: 260px;
+}
+
+.file-card-audio .file-card-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-card-audio .file-card-name .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.file-card-audio audio {
+  width: 100%;
+  height: 32px;
+}
+
+/* Text file cards */
+.file-card-text .material-symbols-outlined {
+  color: var(--accent-blue);
+}
+
+/* Text preview modal content */
+.text-preview-content {
+  background: var(--surface);
+  border: 1px solid var(--outline-subtle);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   LIGHTBOX (fullscreen image viewer)
+   ============================================================ */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+}
+
+.lightbox-name {
+  font-size: 14px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-close {
+  color: #fff !important;
+}
+
+.lightbox-overlay > img {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   VIDEO SETTINGS MODAL
+   ============================================================ */
+.video-settings-modal {
+  width: 520px;
+}
+
+.video-settings-preview {
+  margin-bottom: 16px;
+}
+
+.video-settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.video-settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.video-settings-row .settings-number-input {
+  width: 100%;
+}
+
+.video-settings-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.video-settings-info .material-symbols-outlined {
+  font-size: 16px;
 }

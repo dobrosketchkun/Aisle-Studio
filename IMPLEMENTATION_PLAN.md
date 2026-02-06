@@ -153,40 +153,40 @@ The model selector card in the right panel should open a picker modal.
 ## Phase 6: File Upload & Preview
 
 ### 6a: Backend
-- [ ] **6a.1** Add `python-multipart` to `requirements.txt`
-- [ ] **6a.2** Create `POST /api/chats/{id}/upload` endpoint:
-  - [ ] Accept multipart file upload
-  - [ ] Save to `data/chats/{chat_id}/files/{uuid}_{original_name}`
-  - [ ] Return file metadata: `{ id, name, type, size, path }`
-- [ ] **6a.3** Create `GET /api/chats/{id}/files/{filename}` endpoint:
-  - [ ] Serve the file from disk with correct Content-Type
-- [ ] **6a.4** Update `DELETE /api/chats/{id}` to also remove the `data/chats/{id}/` directory (files)
-- [ ] **6a.5** Update the Message pydantic model to include `files: list[dict] = []`
+- [x] **6a.1** Add `python-multipart` to `requirements.txt`
+- [x] **6a.2** Create `POST /api/chats/{id}/upload` endpoint:
+  - [x] Accept multipart file upload
+  - [x] Save to `data/chats/{chat_id}/files/{uuid}_{original_name}`
+  - [x] Return file metadata: `{ id, name, type, size, path }`
+- [x] **6a.3** Create `GET /api/chats/{id}/files/{filename}` endpoint:
+  - [x] Serve the file from disk with correct Content-Type
+- [x] **6a.4** Update `DELETE /api/chats/{id}` to also remove the `data/chats/{id}/` directory (files)
+- [x] **6a.5** Update the Message pydantic model to include `files: list[dict] = []`
 
 ### 6b: Frontend — Upload
-- [ ] **6b.1** Wire the attach button (add_circle) to open a file input dialog
-- [ ] **6b.2** Implement drag-and-drop on the prompt box:
-  - [ ] Detect dragenter/dragover/drop events
-  - [ ] Show visual drop indicator (border highlight)
-  - [ ] On drop, upload the file(s)
-- [ ] **6b.3** Upload flow:
-  - [ ] POST to `/api/chats/{id}/upload`
-  - [ ] On success, create a new user message with `content: ""` and `files: [metadata]`
-  - [ ] Save chat and re-render
-- [ ] **6b.4** Show upload progress indicator (optional: simple spinner is fine)
+- [x] **6b.1** Wire the attach button (add_circle) to open a file input dialog
+- [x] **6b.2** Implement drag-and-drop on the prompt box:
+  - [x] Detect dragenter/dragover/drop events
+  - [x] Show visual drop indicator (border highlight)
+  - [x] On drop, upload the file(s)
+- [x] **6b.3** Upload flow:
+  - [x] POST to `/api/chats/{id}/upload`
+  - [x] On success, create a new user message with `content: ""` and `files: [metadata]`
+  - [x] Save chat and re-render
+- [x] **6b.4** Show upload progress indicator (optional: simple spinner is fine)
 
 ### 6c: Frontend — Preview in messages
-- [ ] **6c.1** Update `Chat.renderTurn()` to check `msg.files` array
-- [ ] **6c.2** For each file, render based on mime type:
-  - [ ] `image/*` → inline `<img>` thumbnail, click to expand
-  - [ ] `video/*` → inline `<video>` with controls
-  - [ ] `audio/*` → inline `<audio>` player
-  - [ ] `.txt/.md/.csv/.log/.json/.xml/.yaml` → text preview card, click to open in modal
-  - [ ] `.pdf` → file card with "Open in new tab" link
-  - [ ] Everything else → generic file card (icon + name + size)
-- [ ] **6c.3** Add CSS for file preview cards and media elements
-- [ ] **6c.4** Image expand: lightbox overlay on click (simple fullscreen with close button)
-- [ ] **6c.5** Test: upload image, video, text file, PDF — each renders correctly
+- [x] **6c.1** Update `Chat.renderTurn()` to check `msg.files` array
+- [x] **6c.2** For each file, render based on mime type:
+  - [x] `image/*` → inline `<img>` thumbnail, click to expand
+  - [x] `video/*` → inline `<video>` with controls
+  - [x] `audio/*` → inline `<audio>` player
+  - [x] `.txt/.md/.csv/.log/.json/.xml/.yaml` → text preview card, click to open in modal
+  - [x] `.pdf` → file card with "Open in new tab" link
+  - [x] Everything else → generic file card (icon + name + size)
+- [x] **6c.3** Add CSS for file preview cards and media elements
+- [x] **6c.4** Image expand: lightbox overlay on click (simple fullscreen with close button)
+- [x] **6c.5** Test: upload image, video, text file, PDF — each renders correctly
 
 ---
 

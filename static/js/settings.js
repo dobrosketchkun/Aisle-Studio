@@ -22,7 +22,14 @@ const Settings = {
 
     titleEl.textContent = model?.name || s.model;
     subtitleEl.textContent = s.model;
-    descEl.textContent = model?.description || '';
+
+    // Show multimodal capabilities as badges
+    const caps = model?.multimodal || [];
+    let descText = model?.description || '';
+    if (caps.length > 0) {
+      descText += (descText ? ' · ' : '') + caps.join(', ');
+    }
+    descEl.textContent = descText;
   },
 
   /** Render all parameter controls from provider schema */
@@ -252,9 +259,16 @@ const Settings = {
 
       listContainer.innerHTML = provider.models.map(m => {
         const isActive = s.provider === activeProvider && s.model === m.id;
+        const caps = (m.multimodal || []).map(c => {
+          const icons = { image: 'image', video: 'videocam', audio: 'mic' };
+          return `<span class="model-cap-badge" title="${c}"><span class="material-symbols-outlined">${icons[c] || 'attachment'}</span></span>`;
+        }).join('');
         return `
           <button class="model-picker-item${isActive ? ' active' : ''}" data-model-id="${m.id}">
-            <div class="model-picker-item-name">${m.name}</div>
+            <div class="model-picker-item-header">
+              <div class="model-picker-item-name">${m.name}</div>
+              ${caps ? `<div class="model-cap-badges">${caps}</div>` : ''}
+            </div>
             <div class="model-picker-item-id">${m.id}</div>
             <div class="model-picker-item-desc">${m.description || ''}</div>
           </button>`;

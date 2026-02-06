@@ -146,6 +146,9 @@ const Chat = {
     // Render mermaid diagrams
     this._renderMermaidInContainer(container);
 
+    // Generate video thumbnails in chat messages
+    this._generateChatVideoThumbnails(container);
+
     // Scroll to bottom
     container.scrollTop = container.scrollHeight;
   },
@@ -184,10 +187,13 @@ const Chat = {
       <path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="url(#sparkle-grad)"/>
     </svg>`;
 
+    const filesHtml = this.renderFileAttachments(msg.files, App.currentChat?.id, msg.id);
+
     return `
       <div class="chat-turn" data-msg-id="${msg.id}">
         <div class="turn-role-label ${labelClass}">${roleLabel}</div>
         <div class="turn-content">
+          ${filesHtml}
           ${contentHtml}
           <div class="turn-actions">
             ${isUser ? `<button class="turn-action-btn" onclick="Chat.startEdit('${msg.id}')" title="Edit">
@@ -482,6 +488,466 @@ const Chat = {
     const container = document.getElementById('chat-messages');
     container.scrollTop = container.scrollHeight;
   },
+
+  /* ---- File upload & preview ---- */
+
+  /** Upload files to server and add to pending list */
+  async uploadFiles(fileList) {
+    if (!App.currentChat) {
+      await App.createChat();
+    }
+
+    for (const file of fileList) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch(`/api/chats/${App.currentChat.id}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        const meta = await res.json();
+        App.pendingFiles.push(meta);
+      } catch (e) {
+        console.error('Upload failed:', e);
+      }
+    }
+
+    this.renderPendingFiles();
+  },
+
+  /** Render pending file chips in the prompt area */
+  renderPendingFiles() {
+    const container = document.getElementById('pending-files');
+    if (!container) return;
+
+    if (!App.pendingFiles.length) {
+      container.innerHTML = '';
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'flex';
+    container.innerHTML = App.pendingFiles.map((f, i) => {
+      const isImage = (f.type || '').startsWith('image/');
+      const isVideo = (f.type || '').startsWith('video/');
+      const url = App.currentChat ? `/api/chats/${App.currentChat.id}/files/${encodeURIComponent(f.filename)}` : '';
+
+      let thumbHtml;
+      if (isImage && url) {
+        thumbHtml = `<img class="pending-file-thumb" src="${url}" alt="">`;
+      } else if (isVideo && url) {
+        // Video thumbnail: render a <video> to grab a frame via canvas
+        thumbHtml = `<canvas class="pending-file-thumb pending-video-thumb" data-video-url="${url}" data-file-index="${i}"></canvas>`;
+      } else {
+        thumbHtml = `<span class="material-symbols-outlined pending-file-icon">${this._fileIcon(f.type)}</span>`;
+      }
+
+      const tokens = this._estimateTokens(f);
+      const meta = tokens > 0 ? `~${tokens.toLocaleString()} tokens` : this._formatSize(f.size);
+
+      const settingsBtn = isVideo ? `<button class="pending-file-settings" onclick="event.stopPropagation(); Chat.openVideoSettings(${i})" title="Video settings"><span class="material-symbols-outlined">settings</span></button>` : '';
+
+      return `<div class="pending-file-chip" ${isVideo ? `onclick="Chat.openVideoSettings(${i})"` : ''}>
+        ${thumbHtml}
+        <div class="pending-file-info">
+          <span class="pending-file-name">${this.escapeHtml(f.name)}</span>
+          <span class="pending-file-meta" id="pending-meta-${i}">${meta}</span>
+        </div>
+        ${settingsBtn}
+        <button class="pending-file-remove" onclick="event.stopPropagation(); Chat.removePendingFile(${i})">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>`;
+    }).join('');
+
+    // Generate video thumbnails
+    this._generateVideoThumbnails();
+  },
+
+  /** Generate thumbnails for video files by capturing a frame */
+  _generateVideoThumbnails() {
+    document.querySelectorAll('.pending-video-thumb').forEach(canvas => {
+      const url = canvas.dataset.videoUrl;
+      const idx = parseInt(canvas.dataset.fileIndex);
+      if (!url) return;
+
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.preload = 'metadata';
+
+      video.addEventListener('loadeddata', () => {
+        // Seek to 0.5s or start
+        video.currentTime = Math.min(0.5, video.duration || 0);
+      });
+
+      video.addEventListener('seeked', () => {
+        canvas.width = 36;
+        canvas.height = 36;
+        const ctx = canvas.getContext('2d');
+        // Cover-fit: center crop
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const scale = Math.max(36 / vw, 36 / vh);
+        const sw = 36 / scale, sh = 36 / scale;
+        const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, 36, 36);
+
+        // Store video metadata for token estimation
+        const f = App.pendingFiles[idx];
+        if (f && !f._duration) {
+          f._duration = video.duration;
+          f._width = video.videoWidth;
+          f._height = video.videoHeight;
+          // Update token count now that we have duration
+          const tokens = Chat._estimateTokens(f);
+          const metaEl = document.getElementById(`pending-meta-${idx}`);
+          if (metaEl && tokens > 0) {
+            metaEl.textContent = `~${tokens.toLocaleString()} tokens`;
+          }
+        }
+        video.src = '';
+      });
+
+      video.src = url;
+    });
+  },
+
+  _estimateTokens(file) {
+    const type = (file.type || '');
+    if (type.startsWith('image/')) {
+      // Rough heuristic based on file size
+      return Math.max(258, Math.round(file.size / 200));
+    }
+    if (type.startsWith('video/')) {
+      // Use video settings if available, otherwise estimate from duration
+      const duration = file._duration || 0;
+      if (!duration) return 0; // not yet loaded
+      const fps = (file.videoSettings && file.videoSettings.fps) || 1;
+      const startTime = (file.videoSettings && file.videoSettings.startTime) || 0;
+      const endTime = (file.videoSettings && file.videoSettings.endTime) || duration;
+      const clipDuration = Math.max(0, endTime - startTime);
+      const frameCount = Math.ceil(clipDuration * fps);
+      // Each frame ~ 258 tokens (like a single image)
+      return frameCount * 258;
+    }
+    if (type.startsWith('audio/')) {
+      // ~25 tokens per second of audio (rough Gemini estimate)
+      const duration = file._duration || 0;
+      return duration > 0 ? Math.round(duration * 25) : 0;
+    }
+    if (type.startsWith('text/') || type.includes('json') || type.includes('xml')) {
+      return Math.round(file.size / 4);
+    }
+    return 0;
+  },
+
+  /** Generate thumbnails for video files in chat messages */
+  _generateChatVideoThumbnails(container) {
+    container.querySelectorAll('.chat-video-thumb').forEach(canvas => {
+      const url = canvas.dataset.videoUrl;
+      if (!url) return;
+
+      const card = canvas.closest('.file-card-video');
+
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.preload = 'metadata';
+
+      video.addEventListener('loadeddata', () => {
+        video.currentTime = Math.min(0.5, video.duration || 0);
+      });
+
+      video.addEventListener('seeked', () => {
+        const thumbW = 80, thumbH = 60;
+        canvas.width = thumbW;
+        canvas.height = thumbH;
+        const ctx = canvas.getContext('2d');
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const scale = Math.max(thumbW / vw, thumbH / vh);
+        const sw = thumbW / scale, sh = thumbH / scale;
+        const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, thumbW, thumbH);
+        video.src = '';
+      });
+
+      // Make the card clickable for video playback
+      if (card) {
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.file-card-delete')) return;
+          Chat.openVideoPlayer(url, card.querySelector('.file-card-name')?.textContent || 'Video');
+        });
+      }
+
+      video.src = url;
+    });
+  },
+
+  removePendingFile(index) {
+    App.pendingFiles.splice(index, 1);
+    this.renderPendingFiles();
+  },
+
+  /** Render file attachments inside a chat turn — each file is a separate visual block */
+  renderFileAttachments(files, chatId, msgId) {
+    if (!files || !files.length) return '';
+    return files.map((f, i) => this._renderFileCard(f, chatId, msgId, i)).join('');
+  },
+
+  _renderFileCard(file, chatId, msgId, index) {
+    const url = `/api/chats/${chatId}/files/${encodeURIComponent(file.filename)}`;
+    const type = (file.type || '').split('/')[0];
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    const safeName = this.escapeHtml(file.name || 'file');
+    const deleteBtn = `<button class="file-card-delete" onclick="event.stopPropagation(); App.deleteFileFromMessage('${msgId}', ${index})" title="Remove file"><span class="material-symbols-outlined">close</span></button>`;
+
+    if (type === 'image') {
+      return `<div class="file-card file-card-image">
+        ${deleteBtn}
+        <img src="${url}" alt="${safeName}" loading="lazy" onclick="Chat.openLightbox('${url}', '${safeName}')">
+        <div class="file-card-name">${safeName}</div>
+      </div>`;
+    }
+
+    if (type === 'video') {
+      return `<div class="file-card file-card-video" data-video-url="${url}">
+        ${deleteBtn}
+        <div class="file-card-video-thumb">
+          <canvas class="chat-video-thumb" data-video-url="${url}"></canvas>
+          <span class="material-symbols-outlined file-video-play">play_circle</span>
+        </div>
+        <div class="file-card-info">
+          <div class="file-card-name">${safeName}</div>
+          <div class="file-card-size">${this._formatSize(file.size)}</div>
+        </div>
+      </div>`;
+    }
+
+    if (type === 'audio') {
+      return `<div class="file-card file-card-audio">
+        ${deleteBtn}
+        <div class="file-card-name"><span class="material-symbols-outlined">audio_file</span>${safeName}</div>
+        <audio controls preload="metadata" src="${url}"></audio>
+      </div>`;
+    }
+
+    const textExts = ['txt', 'md', 'csv', 'log', 'json', 'xml', 'yaml', 'yml'];
+    if (textExts.includes(ext)) {
+      return `<div class="file-card file-card-text" onclick="Chat.openTextPreview('${url}', '${safeName}')">
+        ${deleteBtn}
+        <span class="material-symbols-outlined">description</span>
+        <div class="file-card-info">
+          <div class="file-card-name">${safeName}</div>
+          <div class="file-card-size">${this._formatSize(file.size)}</div>
+        </div>
+      </div>`;
+    }
+
+    if (ext === 'pdf') {
+      return `<div class="file-card file-card-generic" onclick="window.open('${url}', '_blank')">
+        ${deleteBtn}
+        <span class="material-symbols-outlined">picture_as_pdf</span>
+        <div class="file-card-info">
+          <div class="file-card-name">${safeName}</div>
+          <div class="file-card-size">${this._formatSize(file.size)}</div>
+        </div>
+      </div>`;
+    }
+
+    return `<div class="file-card file-card-generic" onclick="window.open('${url}', '_blank')">
+      ${deleteBtn}
+      <span class="material-symbols-outlined">attach_file</span>
+      <div class="file-card-info">
+        <div class="file-card-name">${safeName}</div>
+        <div class="file-card-size">${this._formatSize(file.size)}</div>
+      </div>
+    </div>`;
+  },
+
+  _fileIcon(mimeType) {
+    if (!mimeType) return 'attach_file';
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'videocam';
+    if (mimeType.startsWith('audio/')) return 'audio_file';
+    if (mimeType === 'application/pdf') return 'picture_as_pdf';
+    return 'description';
+  },
+
+  _formatSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  },
+
+  /** Full-screen image lightbox */
+  openLightbox(url, name) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = `
+      <div class="lightbox-header">
+        <span class="lightbox-name">${name}</span>
+        <button class="icon-btn lightbox-close" onclick="this.closest('.lightbox-overlay').remove()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <img src="${url}" alt="${name}">`;
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+  },
+
+  /** Video player lightbox */
+  openVideoPlayer(url, name) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = `
+      <div class="lightbox-header">
+        <span class="lightbox-name">${name}</span>
+        <button class="icon-btn lightbox-close" onclick="this.closest('.lightbox-overlay').remove()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <video controls autoplay src="${url}" style="max-width:90vw;max-height:85vh;border-radius:4px;"></video>`;
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+  },
+
+  /** Video settings modal (Start Time, End Time, FPS) */
+  openVideoSettings(fileIndex) {
+    const file = App.pendingFiles[fileIndex];
+    if (!file) return;
+
+    const url = App.currentChat ? `/api/chats/${App.currentChat.id}/files/${encodeURIComponent(file.filename)}` : '';
+    if (!url) return;
+
+    const settings = file.videoSettings || {};
+    const duration = file._duration || 0;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal video-settings-modal">
+        <div class="modal-header">
+          <h3>Video settings</h3>
+          <button class="icon-btn icon-btn-sm" onclick="this.closest('.modal-overlay').remove()">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="video-settings-preview">
+            <video id="video-settings-player" controls src="${url}" style="width:100%;max-height:300px;border-radius:8px;background:#000;"></video>
+          </div>
+          <div class="video-settings-fields">
+            <div class="video-settings-row">
+              <label class="settings-label">Start Time (s)</label>
+              <input type="number" id="vs-start" class="settings-number-input" min="0" max="${duration}" step="0.1" value="${settings.startTime || 0}">
+            </div>
+            <div class="video-settings-row">
+              <label class="settings-label">End Time (s)</label>
+              <input type="number" id="vs-end" class="settings-number-input" min="0" max="${duration}" step="0.1" value="${settings.endTime || (duration || '')}">
+            </div>
+            <div class="video-settings-row">
+              <label class="settings-label">FPS (frames per second)</label>
+              <input type="number" id="vs-fps" class="settings-number-input" min="0.1" max="30" step="0.1" value="${settings.fps || 1}">
+            </div>
+            <div class="video-settings-info">
+              <span class="material-symbols-outlined">info</span>
+              <span id="vs-token-estimate">Estimating...</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button class="btn-primary" id="vs-save-btn">Save</button>
+        </div>
+      </div>`;
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+
+    // Update metadata once video loads
+    const videoEl = document.getElementById('video-settings-player');
+    const startInput = document.getElementById('vs-start');
+    const endInput = document.getElementById('vs-end');
+    const fpsInput = document.getElementById('vs-fps');
+    const tokenEstimate = document.getElementById('vs-token-estimate');
+
+    const updateEstimate = () => {
+      const fps = parseFloat(fpsInput.value) || 1;
+      const start = parseFloat(startInput.value) || 0;
+      const end = parseFloat(endInput.value) || file._duration || 0;
+      const clipDuration = Math.max(0, end - start);
+      const frames = Math.ceil(clipDuration * fps);
+      const tokens = frames * 258;
+      tokenEstimate.textContent = `~${frames} frames, ~${tokens.toLocaleString()} tokens`;
+    };
+
+    videoEl.addEventListener('loadedmetadata', () => {
+      const dur = videoEl.duration;
+      file._duration = dur;
+      file._width = videoEl.videoWidth;
+      file._height = videoEl.videoHeight;
+      endInput.max = dur;
+      startInput.max = dur;
+      if (!settings.endTime) endInput.value = dur.toFixed(1);
+      updateEstimate();
+    });
+
+    startInput.addEventListener('input', updateEstimate);
+    endInput.addEventListener('input', updateEstimate);
+    fpsInput.addEventListener('input', updateEstimate);
+
+    // If duration already known, set immediately
+    if (duration) updateEstimate();
+
+    // Save button
+    document.getElementById('vs-save-btn').addEventListener('click', () => {
+      file.videoSettings = {
+        startTime: parseFloat(startInput.value) || 0,
+        endTime: parseFloat(endInput.value) || file._duration || 0,
+        fps: parseFloat(fpsInput.value) || 1,
+      };
+      // Update pending chip token display
+      this.renderPendingFiles();
+      overlay.remove();
+    });
+  },
+
+  /** Text file preview in a modal */
+  async openTextPreview(url, name) {
+    try {
+      const res = await fetch(url);
+      const text = await res.text();
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal" style="width:700px;">
+          <div class="modal-header">
+            <h3>${name}</h3>
+            <button class="icon-btn icon-btn-sm" onclick="this.closest('.modal-overlay').remove()">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <pre class="text-preview-content">${this.escapeHtml(text)}</pre>
+          </div>
+        </div>`;
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+      });
+      document.body.appendChild(overlay);
+    } catch (e) {
+      console.error('Failed to load text preview', e);
+    }
+  },
 };
 
 /* ============================================================
@@ -509,6 +975,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   runBtn.addEventListener('click', submitMessage);
 
+  // File upload wiring
+  const fileInput = document.getElementById('file-input');
+  const attachBtn = document.querySelector('.prompt-btn[title="Attach files"]');
+  const promptBox = document.querySelector('.prompt-box');
+
+  attachBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+      Chat.uploadFiles(fileInput.files);
+      fileInput.value = '';
+    }
+  });
+
+  // Drag and drop on prompt box
+  promptBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    promptBox.classList.add('drag-over');
+  });
+
+  promptBox.addEventListener('dragleave', (e) => {
+    if (!promptBox.contains(e.relatedTarget)) {
+      promptBox.classList.remove('drag-over');
+    }
+  });
+
+  promptBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    promptBox.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+      Chat.uploadFiles(e.dataTransfer.files);
+    }
+  });
+
   async function submitMessage() {
     // If currently generating, treat as Stop
     if (App.isGenerating) {
@@ -517,22 +1017,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const content = textarea.value.trim();
-    if (!content) return;
+    const files = [...App.pendingFiles];
+    if (!content && !files.length) return;
 
     // Clear input immediately for responsiveness
     textarea.value = '';
     textarea.style.height = 'auto';
+    App.pendingFiles = [];
+    Chat.renderPendingFiles();
 
     // Create chat if needed
     if (!App.currentChat) {
       await App.createChat();
     }
 
-    // Add user message
-    await App.addUserMessage(content);
+    // Add user message with files
+    await App.addUserMessage(content, files);
 
     // Auto-title from first user message
-    if (App.currentChat.title === 'Untitled chat') {
+    if (App.currentChat.title === 'Untitled chat' && content) {
       const title = content.substring(0, 50) + (content.length > 50 ? '...' : '');
       App.renameChat(App.currentChat.id, title);
     }

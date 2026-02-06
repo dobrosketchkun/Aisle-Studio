@@ -1,5 +1,8 @@
+import base64
 import json
+import mimetypes
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,7 +10,7 @@ from typing import AsyncIterator
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -49,6 +52,7 @@ class Message(BaseModel):
     role: str  # "user" or "model"
     content: str = ""
     thoughts: str = ""
+    files: list[dict] = Field(default_factory=list)
 
 
 class ChatUpdate(BaseModel):
@@ -82,18 +86,109 @@ def _resolve_openrouter_model(settings: dict) -> str:
     return model
 
 
-def _openrouter_messages(messages: list[dict]) -> list[dict]:
+def _load_providers() -> dict:
+    path = STATIC_DIR / "providers.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {}
+
+
+def _get_model_capabilities(settings: dict) -> set[str]:
+    """Return the set of multimodal capabilities for the current model."""
+    providers = _load_providers()
+    provider_key = settings.get("provider", "openrouter")
+    model_id = settings.get("model", "")
+    provider = providers.get(provider_key, {})
+    for m in provider.get("models", []):
+        if m.get("id") == model_id:
+            return set(m.get("multimodal", []))
+    return set()
+
+
+# Extensions / MIME types we treat as readable text and inject as content
+_TEXT_EXTENSIONS = {
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".htm", ".css", ".scss",
+    ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".md", ".txt", ".csv", ".log", ".sh", ".bash", ".zsh", ".bat", ".ps1",
+    ".c", ".cpp", ".h", ".hpp", ".java", ".kt", ".go", ".rs", ".rb",
+    ".php", ".pl", ".r", ".sql", ".swift", ".dart", ".lua", ".ex", ".exs",
+    ".vue", ".svelte", ".astro", ".env", ".gitignore", ".dockerfile",
+}
+
+
+def _is_text_file(filename: str, mime_type: str) -> bool:
+    """Determine if a file should be sent as inline text."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in _TEXT_EXTENSIONS:
+        return True
+    if mime_type.startswith("text/"):
+        return True
+    if any(k in mime_type for k in ("json", "xml", "yaml", "javascript", "typescript")):
+        return True
+    return False
+
+
+def _openrouter_messages(
+    messages: list[dict], chat_id: str, capabilities: set[str] | None = None,
+) -> list[dict]:
+    if capabilities is None:
+        capabilities = set()
+
     converted = []
     for msg in messages:
         role = msg.get("role", "")
         if role not in {"user", "model", "assistant"}:
             continue
-        converted.append(
-            {
-                "role": "assistant" if role in {"model", "assistant"} else "user",
-                "content": msg.get("content", ""),
-            }
-        )
+
+        api_role = "assistant" if role in {"model", "assistant"} else "user"
+        text = msg.get("content", "")
+        files = msg.get("files", [])
+
+        extra_parts = []  # media (base64) or text file content
+        for f in files:
+            ftype = f.get("type", "")
+            fname = f.get("name", f.get("filename", ""))
+            category = ftype.split("/")[0] if ftype else ""
+
+            file_path = DATA_DIR / chat_id / "files" / f.get("filename", "")
+            if not file_path.exists():
+                continue
+
+            # Media files — send as base64 if model supports them
+            if category in ("image", "video", "audio"):
+                if category not in capabilities:
+                    continue
+                data = base64.b64encode(file_path.read_bytes()).decode("utf-8")
+                extra_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{ftype};base64,{data}"},
+                })
+            # Text/code files — read and inject as text
+            elif _is_text_file(fname, ftype):
+                try:
+                    file_text = file_path.read_text(encoding="utf-8", errors="replace")
+                    extra_parts.append({
+                        "type": "text",
+                        "text": f"--- File: {fname} ---\n{file_text}\n--- End of {fname} ---",
+                    })
+                except Exception:
+                    pass
+            # PDF / binary — try to mention it so the model knows a file was attached
+            else:
+                extra_parts.append({
+                    "type": "text",
+                    "text": f"[Attached file: {fname} ({ftype}, {f.get('size', 0)} bytes) — binary file, content not shown]",
+                })
+
+        if extra_parts:
+            content = []
+            if text:
+                content.append({"type": "text", "text": text})
+            content.extend(extra_parts)
+            converted.append({"role": api_role, "content": content})
+        else:
+            converted.append({"role": api_role, "content": text})
+
     return converted
 
 
@@ -192,6 +287,10 @@ def delete_chat(chat_id: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail="Chat not found")
     path.unlink()
+    # Remove uploaded files directory if it exists
+    files_dir = DATA_DIR / chat_id
+    if files_dir.exists() and files_dir.is_dir():
+        shutil.rmtree(files_dir)
     return {"ok": True}
 
 
@@ -204,9 +303,11 @@ async def generate_chat_response(chat_id: str):
     settings = chat.get("settings", {})
     params = settings.get("params", {})
 
+    capabilities = _get_model_capabilities(settings)
+
     request_body = {
         "model": _resolve_openrouter_model(settings),
-        "messages": _openrouter_messages(chat.get("messages", [])),
+        "messages": _openrouter_messages(chat.get("messages", []), chat_id, capabilities),
         "stream": True,
     }
 
@@ -291,6 +392,46 @@ async def generate_chat_response(chat_id: str):
                 _write_chat(chat)
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+# --- File Upload & Serve ---
+
+@app.post("/api/chats/{chat_id}/upload")
+async def upload_file(chat_id: str, file: UploadFile):
+    chat_path = DATA_DIR / f"{chat_id}.json"
+    if not chat_path.exists():
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    files_dir = DATA_DIR / chat_id / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+
+    file_id = str(uuid.uuid4())[:8]
+    safe_name = os.path.basename(file.filename or "upload")
+    saved_name = f"{file_id}_{safe_name}"
+    file_path = files_dir / saved_name
+
+    content = await file.read()
+    file_path.write_bytes(content)
+
+    mime_type = file.content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    return {
+        "id": file_id,
+        "name": safe_name,
+        "type": mime_type,
+        "size": len(content),
+        "filename": saved_name,
+    }
+
+
+@app.get("/api/chats/{chat_id}/files/{filename}")
+def get_file(chat_id: str, filename: str):
+    # Prevent path traversal
+    filename = os.path.basename(filename)
+    file_path = DATA_DIR / chat_id / "files" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return FileResponse(str(file_path), media_type=mime_type)
 
 
 # --- Static files ---

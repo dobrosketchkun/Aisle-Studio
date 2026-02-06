@@ -114,6 +114,7 @@
             placeholder="Start typing a prompt, use alt + enter to append"
             aria-label="Enter a prompt"
           ></textarea>
+          <div id="pending-files" class="pending-files" style="display:none;"></div>
           <div class="prompt-buttons">
             <div class="prompt-buttons-left">
               <button class="prompt-btn" title="API Key">
@@ -197,9 +198,10 @@
     </button>
   </div>
 
-  <script src="/static/js/app.js?v=4"></script>
-  <script src="/static/js/sidebar.js?v=4"></script>
-  <script src="/static/js/chat.js?v=4"></script>
-  <script src="/static/js/settings.js?v=4"></script>
+  <input type="file" id="file-input" multiple hidden>
+  <script src="/static/js/app.js?v=8"></script>
+  <script src="/static/js/sidebar.js?v=8"></script>
+  <script src="/static/js/chat.js?v=8"></script>
+  <script src="/static/js/settings.js?v=8"></script>
 </body>
 </html>
