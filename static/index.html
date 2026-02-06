@@ -1,19 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Local AI Studio</title>
+  <title>Aisle Studio</title>
+
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+    rel="stylesheet">
 
   <!-- Markdown / Code -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/github-dark.min.css">
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/github-dark.min.css">
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
 
   <!-- Mermaid diagrams -->
@@ -25,6 +31,7 @@
 
   <link rel="stylesheet" href="/static/css/style.css?v=20">
 </head>
+
 <body>
   <div id="app" class="app-layout">
     <!-- ============ LEFT SIDEBAR ============ -->
@@ -32,7 +39,7 @@
       <div class="sidebar-header">
         <div class="logo-wrapper">
           <span class="material-symbols-outlined logo-icon">neurology</span>
-          <span class="logo-text">Local AI Studio</span>
+          <span class="logo-text">Aisle Studio</span>
         </div>
       </div>
 
@@ -114,13 +121,8 @@
       <footer class="chat-footer">
         <div class="footer-fade"></div>
         <div class="prompt-box">
-          <textarea
-            id="prompt-input"
-            class="prompt-textarea"
-            rows="1"
-            placeholder="Start typing a prompt, use alt + enter to append"
-            aria-label="Enter a prompt"
-          ></textarea>
+          <textarea id="prompt-input" class="prompt-textarea" rows="1"
+            placeholder="Start typing a prompt, use alt + enter to append" aria-label="Enter a prompt"></textarea>
           <div id="pending-files" class="pending-files" style="display:none;"></div>
           <div class="prompt-buttons">
             <div class="prompt-buttons-left">
@@ -205,4 +207,5 @@
   <script src="/static/js/chat.js?v=20"></script>
   <script src="/static/js/settings.js?v=20"></script>
 </body>
+
 </html>

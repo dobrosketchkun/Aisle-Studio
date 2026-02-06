@@ -1,4 +1,4 @@
-# IMPLEMENTATION PLAN — LOCAL AI STUDIO
+# IMPLEMENTATION PLAN — AISLE STUDIO
 
 Full feature parity with Google AI Studio UI as shown in reference screenshots.
 
@@ -7,7 +7,7 @@ Full feature parity with Google AI Studio UI as shown in reference screenshots.
 ## LAYOUT (3-column)
 
 ### Left Sidebar (220px, collapsible)
-- [ ] Logo area: icon + "Local AI Studio" text
+- [ ] Logo area: icon + "Aisle Studio" text
 - [ ] **New chat** button (+ icon)
 - [ ] Nav section: "Chats" header with icon
 - [ ] Chat history list — each item:

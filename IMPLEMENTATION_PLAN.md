@@ -1,4 +1,4 @@
-# IMPLEMENTATION PLAN — Local AI Studio
+# IMPLEMENTATION PLAN — Aisle Studio
 
 Step-by-step execution checklist. First target: working chat with `google/gemini-3-pro-preview` via OpenRouter.
 
