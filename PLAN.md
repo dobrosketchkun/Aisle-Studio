@@ -247,11 +247,11 @@ Using `marked.js` + `highlight.js` + `mermaid.js`:
 Render differently based on mime type:
 - [ ] **Images** (image/*): inline thumbnail preview, click to expand/fullscreen
 - [ ] **Videos** (video/*): inline `<video>` player with controls, poster thumbnail
+- [ ] **Audio** (audio/*): inline - simple audio player
 - [ ] **Text files** (.txt, .md, .csv, .log, .json, .xml, .yaml, etc.):
-  collapsible preview showing first ~50 lines, syntax-highlighted where applicable
+ preview in the text area popup area (almost fullscreen)
 - [ ] **PDFs** (.pdf): file card with "Open in new tab" link (`window.open` to served URL)
 - [ ] **Everything else**: generic file card showing icon + filename + extension + file size
-- [ ] All file messages show a small "X" / delete button to remove from conversation
 
 ### Auto-behaviors
 - [ ] New chat auto-titled from first message (first 50 chars)
