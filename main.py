@@ -25,11 +25,42 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR = Path(__file__).parent / "static"
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-if not OPENROUTER_API_KEY:
-    raise RuntimeError(
-        "Missing OPENROUTER_API_KEY. Add it to your environment or .env before starting the server."
-    )
+KEYS_FILE = Path(__file__).parent / "data" / "keys.json"
+
+# Environment variable mapping for each provider
+_ENV_KEY_MAP = {
+    "openrouter": "OPENROUTER_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
+
+def _load_keys() -> dict:
+    """Load saved API keys from disk."""
+    if KEYS_FILE.exists():
+        try:
+            return json.loads(KEYS_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+
+def _save_keys(keys: dict):
+    """Persist API keys to disk."""
+    KEYS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    KEYS_FILE.write_text(json.dumps(keys, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _get_api_key(provider: str) -> str | None:
+    """Get API key for a provider — checks keys.json first, then env vars."""
+    keys = _load_keys()
+    if keys.get(provider):
+        return keys[provider]
+    env_var = _ENV_KEY_MAP.get(provider)
+    if env_var:
+        return os.getenv(env_var)
+    return None
 
 
 # --- Models ---
@@ -294,14 +325,49 @@ def delete_chat(chat_id: str):
     return {"ok": True}
 
 
+class KeysUpdate(BaseModel):
+    keys: dict[str, str] = Field(default_factory=dict)
+
+
+@app.get("/api/keys")
+def get_keys_status():
+    """Return which providers have API keys configured (not the keys themselves)."""
+    providers = list(_load_providers().keys())
+    return {p: bool(_get_api_key(p)) for p in providers}
+
+
+@app.post("/api/keys")
+def update_keys(update: KeysUpdate):
+    """Save or clear API keys. Empty string removes the key."""
+    current = _load_keys()
+    for provider, key in update.keys.items():
+        key = key.strip()
+        if key:
+            current[provider] = key
+        else:
+            current.pop(provider, None)
+    _save_keys(current)
+    # Return updated status
+    providers = list(_load_providers().keys())
+    return {p: bool(_get_api_key(p)) for p in providers}
+
+
 @app.post("/api/chats/{chat_id}/generate")
 async def generate_chat_response(chat_id: str):
-    if not OPENROUTER_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY is not configured")
-
     chat = _read_chat(chat_id)
     settings = chat.get("settings", {})
     params = settings.get("params", {})
+
+    # Get API key dynamically (keys.json → env var fallback)
+    api_key = _get_api_key("openrouter")
+    if not api_key:
+        return StreamingResponse(
+            iter([_sse_error_event(
+                "No API key configured for OpenRouter. Click the key icon in the prompt bar to add one.",
+                401,
+            )]),
+            media_type="text/event-stream",
+        )
 
     capabilities = _get_model_capabilities(settings)
 
@@ -319,7 +385,7 @@ async def generate_chat_response(chat_id: str):
         request_body.update(params)
 
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 

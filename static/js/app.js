@@ -10,6 +10,7 @@ const App = {
   isGenerating: false,
   abortController: null,
   pendingFiles: [],    // files uploaded but not yet sent with a message
+  keyStatus: {},       // { provider: bool } — which providers have keys configured
 
   /** API helpers */
   async api(method, path, body) {
@@ -43,6 +44,7 @@ const App = {
     Settings.loadFromChat();
     document.getElementById('chat-title').textContent = this.currentChat.title;
     this.updateTokenCount();
+    this.updateKeyIndicator();
   },
 
   async saveChat() {
@@ -255,6 +257,125 @@ const App = {
       this.abortController.abort();
     }
   },
+
+  /** Load API key status from backend */
+  async loadKeyStatus() {
+    try {
+      this.keyStatus = await this.api('GET', '/api/keys');
+    } catch (e) {
+      console.error('Failed to load key status:', e);
+    }
+    this.updateKeyIndicator();
+  },
+
+  /** Update the key button icon based on current provider's key status */
+  updateKeyIndicator() {
+    const btn = document.getElementById('btn-api-key');
+    if (!btn) return;
+    const icon = btn.querySelector('.material-symbols-outlined');
+    const currentProvider = this.currentChat?.settings?.provider || 'openrouter';
+    const hasKey = this.keyStatus[currentProvider];
+    icon.textContent = hasKey ? 'key' : 'key_off';
+    btn.classList.toggle('key-configured', !!hasKey);
+    btn.classList.toggle('key-missing', !hasKey);
+  },
+
+  /** Open the API key management modal */
+  openKeyManagementModal() {
+    this.api('GET', '/api/keys').then(status => {
+      this.keyStatus = status;
+      this.updateKeyIndicator();
+
+      const providerKeys = Object.keys(this.providers);
+      const fieldsHtml = providerKeys.map(key => {
+        const provider = this.providers[key];
+        const hasKey = status[key] || false;
+        return `
+          <div class="key-field" data-provider="${key}">
+            <div class="key-field-header">
+              <label>${provider.name}</label>
+              <span class="key-status ${hasKey ? 'key-active' : 'key-inactive'}">${hasKey ? 'Configured' : 'Not set'}</span>
+            </div>
+            <div class="key-field-input">
+              <input type="password" id="key-input-${key}" placeholder="${hasKey ? '••••••••••••' : 'Enter API key...'}" data-provider="${key}">
+              ${hasKey ? `<button class="key-clear-btn" data-provider="${key}" title="Clear key"><span class="material-symbols-outlined">close</span></button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal key-management-modal">
+          <div class="modal-header">
+            <h3>API Keys</h3>
+            <button class="icon-btn icon-btn-sm modal-close-btn">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="key-modal-desc">Configure API keys for each provider. Keys are stored locally on this server.</p>
+            ${fieldsHtml}
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary modal-cancel-btn">Cancel</button>
+            <button class="btn-primary" id="key-save-btn">Save</button>
+          </div>
+        </div>`;
+
+      document.body.appendChild(overlay);
+
+      // Close handlers
+      overlay.querySelector('.modal-close-btn').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('.modal-cancel-btn').addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) overlay.remove();
+      });
+
+      // Clear buttons
+      overlay.querySelectorAll('.key-clear-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const p = btn.dataset.provider;
+          const input = document.getElementById(`key-input-${p}`);
+          input.value = '';
+          input.dataset.cleared = 'true';
+          input.placeholder = 'Enter API key...';
+          btn.remove();
+          const field = overlay.querySelector(`.key-field[data-provider="${p}"]`);
+          const statusEl = field.querySelector('.key-status');
+          statusEl.className = 'key-status key-inactive';
+          statusEl.textContent = 'Not set';
+        });
+      });
+
+      // Save
+      document.getElementById('key-save-btn').addEventListener('click', async () => {
+        const keys = {};
+        overlay.querySelectorAll('input[data-provider]').forEach(input => {
+          const value = input.value.trim();
+          const cleared = input.dataset.cleared === 'true';
+          if (value) {
+            keys[input.dataset.provider] = value;
+          } else if (cleared) {
+            keys[input.dataset.provider] = '';
+          }
+        });
+
+        if (Object.keys(keys).length === 0) {
+          overlay.remove();
+          return;
+        }
+
+        try {
+          this.keyStatus = await this.api('POST', '/api/keys', { keys });
+          this.updateKeyIndicator();
+        } catch (e) {
+          console.error('Failed to save keys:', e);
+        }
+        overlay.remove();
+      });
+    });
+  },
 };
 
 /* ============================================================
@@ -321,12 +442,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.sidebar-context-menu').forEach(m => m.remove());
   });
 
+  // API key button
+  document.getElementById('btn-api-key').addEventListener('click', () => {
+    App.openKeyManagementModal();
+  });
+
   // Load provider config
   try {
     App.providers = await (await fetch('/static/providers.json')).json();
   } catch (e) {
     console.error('Failed to load providers.json', e);
   }
+
+  // Load API key status
+  await App.loadKeyStatus();
 
   // Load chats
   await App.loadChatList();

@@ -329,6 +329,7 @@ const Settings = {
     this.updateModelCard();
     this.renderDynamicControls();
     App.saveChat();
+    App.updateKeyIndicator();
   },
 
   /** Show system instructions modal */

@@ -1910,3 +1910,103 @@ ul { list-style: none; }
 .video-settings-info .material-symbols-outlined {
   font-size: 16px;
 }
+
+/* ============================================================
+   API KEY MANAGEMENT MODAL
+   ============================================================ */
+.key-management-modal {
+  width: 480px;
+}
+
+.key-modal-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.key-field {
+  margin-bottom: 16px;
+}
+
+.key-field:last-child {
+  margin-bottom: 0;
+}
+
+.key-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.key-field-header label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.key-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.key-status.key-active {
+  color: var(--accent-green);
+  background: rgba(61, 219, 133, 0.1);
+}
+
+.key-status.key-inactive {
+  color: var(--text-secondary);
+  background: var(--surface-container);
+}
+
+.key-field-input {
+  display: flex;
+  gap: 4px;
+}
+
+.key-field-input input {
+  flex: 1;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--outline-subtle);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.key-field-input input:focus {
+  border-color: var(--outline-accent);
+}
+
+.key-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.key-clear-btn:hover {
+  background: var(--hover);
+  color: var(--error);
+}
+
+.key-clear-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Key indicator on prompt button */
+#btn-api-key.key-configured {
+  color: var(--accent-green);
+}
+
+#btn-api-key.key-missing {
+  color: var(--text-secondary);
+}
