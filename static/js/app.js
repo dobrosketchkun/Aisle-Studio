@@ -30,7 +30,10 @@ const App = {
   },
 
   async createChat() {
-    const chat = await this.api('POST', '/api/chats');
+    const body = this.currentChat?.settings
+      ? { settings: this.currentChat.settings }
+      : undefined;
+    const chat = await this.api('POST', '/api/chats', body);
     await this.loadChatList();
     await this.openChat(chat.id);
   },

@@ -68,15 +68,9 @@ def _get_api_key(provider: str) -> str | None:
 
 class ChatSettings(BaseModel):
     provider: str = "openrouter"
-    model: str = "google/gemini-3-pro-preview"
+    model: str = ""
     system_instructions: str = ""
-    params: dict = Field(
-        default_factory=lambda: {
-            "temperature": 1.0,
-            "top_p": 1.0,
-            "max_tokens": 4096,
-        }
-    )
+    params: dict = Field(default_factory=dict)
 
 
 class Message(BaseModel):
@@ -92,6 +86,10 @@ class ChatUpdate(BaseModel):
     settings: ChatSettings | None = None
     messages: list[Message] | None = None
     bookmarked: bool | None = None
+
+
+class CreateChatRequest(BaseModel):
+    settings: ChatSettings | None = None
 
 
 # --- Helpers ---
@@ -110,8 +108,9 @@ def _write_chat(chat: dict):
 
 
 def _resolve_openrouter_model(settings: dict) -> str:
-    provider = str(settings.get("provider", "openrouter")).strip()
-    model = str(settings.get("model", "google/gemini-3-pro-preview")).strip()
+    defaults = _default_chat_settings()
+    provider = str(settings.get("provider") or defaults.get("provider") or "openrouter").strip()
+    model = str(settings.get("model") or defaults.get("model") or "google/gemini-3-pro-preview").strip()
     if "/" in model:
         return model
     if provider and provider != "openrouter":
@@ -124,6 +123,48 @@ def _load_providers() -> dict:
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
     return {}
+
+
+def _default_chat_settings() -> dict:
+    """Build default chat settings from providers.json, with safe fallbacks."""
+    default = ChatSettings().model_dump()
+    if not default.get("provider"):
+        default["provider"] = "openrouter"
+    if not default.get("model"):
+        default["model"] = "google/gemini-3-pro-preview"
+    if not isinstance(default.get("params"), dict) or not default["params"]:
+        default["params"] = {
+            "temperature": 1.0,
+            "top_p": 1.0,
+            "max_tokens": 4096,
+        }
+
+    providers = _load_providers()
+    if not providers:
+        return default
+
+    provider_key = "openrouter" if "openrouter" in providers else next(iter(providers.keys()))
+    provider = providers.get(provider_key, {})
+    models = provider.get("models", [])
+
+    default["provider"] = provider_key
+    if not models:
+        return default
+
+    first_model = models[0]
+    model_id = first_model.get("id")
+    if isinstance(model_id, str) and model_id.strip():
+        default["model"] = model_id
+
+    params_defaults = {}
+    for p in first_model.get("params", []):
+        key = p.get("key")
+        if isinstance(key, str) and "default" in p:
+            params_defaults[key] = p["default"]
+    if params_defaults:
+        default["params"] = params_defaults
+
+    return default
 
 
 def _get_model_capabilities(settings: dict) -> set[str]:
@@ -318,7 +359,19 @@ def search_chats(q: str = "", mode: str = "all"):
 
 
 @app.post("/api/chats")
-def create_chat():
+def create_chat(payload: CreateChatRequest | None = None):
+    default_settings = _default_chat_settings()
+    requested_settings = (
+        payload.settings.model_dump(exclude_defaults=True)
+        if payload and payload.settings
+        else {}
+    )
+    settings = {**default_settings, **requested_settings}
+
+    # Keep params sane: if missing/invalid, fall back to defaults.
+    if not isinstance(settings.get("params"), dict):
+        settings["params"] = default_settings["params"]
+
     chat_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     chat = {
@@ -326,7 +379,7 @@ def create_chat():
         "title": "Untitled chat",
         "created_at": now,
         "updated_at": now,
-        "settings": ChatSettings().model_dump(),
+        "settings": settings,
         "messages": [],
     }
     _write_chat(chat)
