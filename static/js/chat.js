@@ -46,6 +46,9 @@ const Chat = {
               <span>${language}</span>
             </div>
             <div class="code-block-actions">
+              <button onclick="Chat.downloadCode(this, '${language}')" title="Download">
+                <span class="material-symbols-outlined">download</span>
+              </button>
               <button onclick="Chat.copyCode(this)" title="Copy code">
                 <span class="material-symbols-outlined">content_copy</span>
               </button>
@@ -126,7 +129,6 @@ const Chat = {
   render() {
     const container = document.getElementById('chat-messages');
     const emptyState = document.getElementById('empty-state');
-    const disclaimer = document.getElementById('disclaimer');
 
     if (!App.currentChat || App.currentChat.messages.length === 0) {
       this.renderEmpty();
@@ -134,7 +136,6 @@ const Chat = {
     }
 
     if (emptyState) emptyState.style.display = 'none';
-    if (disclaimer) disclaimer.style.display = 'flex';
 
     // Build message HTML
     let html = '';
@@ -164,7 +165,6 @@ const Chat = {
     emptyState.className = 'empty-state';
     emptyState.innerHTML = '<span class="material-symbols-outlined empty-icon">chat_bubble_outline</span><p>Start a conversation</p>';
     container.appendChild(emptyState);
-    document.getElementById('disclaimer').style.display = 'none';
   },
 
   /** Render a single chat turn */
@@ -253,6 +253,32 @@ const Chat = {
   toggleThoughts(el) {
     // Don't toggle if clicking inside the body content
     el.classList.toggle('expanded');
+  },
+
+  /** Download code from a code block */
+  downloadCode(btn, lang) {
+    const wrapper = btn.closest('.code-block-wrapper');
+    const codeEl = wrapper.querySelector('code');
+    const raw = decodeURIComponent(codeEl.dataset.raw);
+    const extMap = {
+      python: 'py', javascript: 'js', typescript: 'ts', jsx: 'jsx', tsx: 'tsx',
+      bash: 'sh', shell: 'sh', zsh: 'sh', bat: 'bat', powershell: 'ps1',
+      html: 'html', css: 'css', scss: 'scss', json: 'json', xml: 'xml',
+      yaml: 'yaml', yml: 'yml', toml: 'toml', markdown: 'md',
+      sql: 'sql', java: 'java', kotlin: 'kt', go: 'go', rust: 'rs',
+      ruby: 'rb', php: 'php', swift: 'swift', dart: 'dart', lua: 'lua',
+      c: 'c', cpp: 'cpp', csharp: 'cs', r: 'r', perl: 'pl',
+      dockerfile: 'dockerfile', makefile: 'makefile',
+    };
+    const ext = extMap[lang] || lang || 'txt';
+    const blob = new Blob([raw], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const uid = crypto.randomUUID().slice(0, 6);
+    a.download = `code-${uid}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
   },
 
   /** Copy code from a code block */
@@ -417,7 +443,6 @@ const Chat = {
     const container = document.getElementById('chat-messages');
     const emptyState = document.getElementById('empty-state');
     if (emptyState) emptyState.style.display = 'none';
-    document.getElementById('disclaimer').style.display = 'flex';
 
     const turnHtml = `
       <div class="chat-turn" data-msg-id="${msgId}">
@@ -542,10 +567,23 @@ const Chat = {
       await App.createChat();
     }
 
+    // Get model capabilities to check file type support
+    const s = App.currentChat.settings;
+    const provider = App.providers[s.provider];
+    const model = provider?.models.find(m => m.id === s.model);
+    const caps = new Set(model?.multimodal || []);
+
     // Convert to array immediately — FileList is a live object tied to the
     // <input> element and may be emptied when the input value is reset.
     const files = Array.from(fileList);
     for (const file of files) {
+      // Check media type against model capabilities
+      const category = file.type.split('/')[0]; // image, video, audio, text, application
+      if (['image', 'video', 'audio'].includes(category) && !caps.has(category)) {
+        App.showToast(`This model doesn't support ${category} files`);
+        continue;
+      }
+
       const formData = new FormData();
       formData.append('file', file);
 

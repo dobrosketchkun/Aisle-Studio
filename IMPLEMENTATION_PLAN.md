@@ -267,6 +267,40 @@ The model selector card in the right panel should open a picker modal.
 
 ---
 
+## Phase 10: Model Management, Code Blocks, File Validation
+
+### 10a: Code block download button
+- [ ] **10a.1** Add download button to code block header (between copy and collapse)
+- [ ] **10a.2** `Chat.downloadCode(btn, lang)` — creates Blob, triggers download with correct file extension
+- [ ] **10a.3** Map language names to file extensions (py, js, sh, etc.)
+
+### 10b: Restructure providers.json — params & tools per model
+- [ ] **10b.1** Move `params` and `tools` from provider level into each model object
+- [ ] **10b.2** Update `settings.js` to read from model instead of provider (`renderDynamicControls`, `resetToDefaults`, `_selectModel`)
+- [ ] **10b.3** Add `_getModelSchema()` helper to settings.js
+- [ ] **10b.4** Consolidate to single `openrouter` provider (models added via OpenRouter API browse)
+
+### 10c: Remove disclaimer
+- [ ] **10c.1** Remove `#disclaimer` div from `index.html`
+- [ ] **10c.2** Remove disclaimer JS references in `chat.js`
+- [ ] **10c.3** Remove `.disclaimer` CSS rules
+
+### 10d: Add/delete models from OpenRouter API
+- [ ] **10d.1** Backend: `GET /api/openrouter/models` — proxy to OpenRouter with 10-min cache
+- [ ] **10d.2** Backend: `POST /api/providers/{provider}/models` — add model to providers.json
+- [ ] **10d.3** Backend: `DELETE /api/providers/{provider}/models/{model_id}` — remove model
+- [ ] **10d.4** Frontend: add `+` button and delete buttons in model picker modal
+- [ ] **10d.5** Frontend: `showAddModelModal()` — browse OpenRouter models with search
+- [ ] **10d.6** Auto-populate model params, multimodal caps from OpenRouter API data
+- [ ] **10d.7** Parse `architecture.modality` field to derive multimodal capabilities
+
+### 10e: Block file attachment for unsupported modalities
+- [ ] **10e.1** Check model capabilities before uploading media files
+- [ ] **10e.2** Show toast notification when file type is not supported by current model
+- [ ] **10e.3** Add toast notification system (`App.showToast()` + CSS)
+
+---
+
 ## Execution Order
 
 | Priority | Phases | What you get |
@@ -276,4 +310,5 @@ The model selector card in the right panel should open a picker modal.
 | Then     | 5a, 5b | Better markdown, mermaid diagrams |
 | Then     | 6      | File upload & preview |
 | Then     | 7, 8   | Polish, rerun, API key UI |
-| Last     | 9      | UX improvements, search, resizable panel |
+| Then     | 9      | UX improvements, search, resizable panel |
+| Then     | 10     | Model management, code blocks, file validation |

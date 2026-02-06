@@ -3,6 +3,7 @@ import json
 import mimetypes
 import os
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -544,6 +545,80 @@ def get_file(chat_id: str, filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     return FileResponse(str(file_path), media_type=mime_type)
+
+
+# --- Provider / Model Management ---
+
+_openrouter_models_cache: dict = {"data": None, "ts": 0}
+
+
+@app.get("/api/openrouter/models")
+async def list_openrouter_models():
+    """Proxy to OpenRouter /api/v1/models with 10-minute cache."""
+    now = time.time()
+    if _openrouter_models_cache["data"] and now - _openrouter_models_cache["ts"] < 600:
+        return _openrouter_models_cache["data"]
+
+    api_key = _get_api_key("openrouter")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="No OpenRouter API key configured")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(
+            "https://openrouter.ai/api/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail="OpenRouter API error")
+        data = resp.json().get("data", [])
+        _openrouter_models_cache["data"] = data
+        _openrouter_models_cache["ts"] = now
+        return data
+
+
+class AddModelRequest(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    multimodal: list[str] = Field(default_factory=list)
+    params: list[dict] = Field(default_factory=list)
+    tools: list[dict] = Field(default_factory=list)
+
+
+def _write_providers(providers: dict):
+    path = STATIC_DIR / "providers.json"
+    path.write_text(json.dumps(providers, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+@app.post("/api/providers/{provider}/models")
+def add_model_to_provider(provider: str, req: AddModelRequest):
+    """Add a model to a provider in providers.json."""
+    providers = _load_providers()
+    if provider not in providers:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    # Check for duplicate
+    models = providers[provider].get("models", [])
+    if any(m["id"] == req.id for m in models):
+        raise HTTPException(status_code=409, detail="Model already exists")
+    models.append(req.model_dump())
+    providers[provider]["models"] = models
+    _write_providers(providers)
+    return providers[provider]
+
+
+@app.delete("/api/providers/{provider}/models/{model_id:path}")
+def delete_model_from_provider(provider: str, model_id: str):
+    """Remove a model from a provider in providers.json."""
+    providers = _load_providers()
+    if provider not in providers:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    models = providers[provider].get("models", [])
+    new_models = [m for m in models if m["id"] != model_id]
+    if len(new_models) == len(models):
+        raise HTTPException(status_code=404, detail="Model not found")
+    providers[provider]["models"] = new_models
+    _write_providers(providers)
+    return providers[provider]
 
 
 # --- Static files ---

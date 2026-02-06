@@ -7,257 +7,242 @@
         "id": "google/gemini-3-pro-preview",
         "name": "Gemini 3 Pro Preview",
         "description": "Most intelligent model",
-        "multimodal": ["image", "video", "audio"]
-      },
-      {
-        "id": "google/gemini-2.5-flash-preview",
-        "name": "Gemini 2.5 Flash Preview",
-        "description": "Fast and efficient",
-        "multimodal": ["image", "video", "audio"]
-      },
-      {
-        "id": "google/gemini-2.5-pro-preview",
-        "name": "Gemini 2.5 Pro Preview",
-        "description": "Balanced performance and reasoning",
-        "multimodal": ["image", "video", "audio"]
-      },
-      {
-        "id": "anthropic/claude-sonnet-4",
-        "name": "Claude Sonnet 4",
-        "description": "Balanced performance",
-        "multimodal": ["image"]
+        "multimodal": [
+          "image",
+          "video",
+          "audio"
+        ],
+        "params": [
+          {
+            "key": "temperature",
+            "label": "Temperature",
+            "type": "slider",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 1.0
+          },
+          {
+            "key": "top_p",
+            "label": "Top P",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "default": 1.0
+          },
+          {
+            "key": "top_k",
+            "label": "Top K",
+            "type": "number",
+            "min": 0,
+            "max": 500,
+            "default": 0
+          },
+          {
+            "key": "max_tokens",
+            "label": "Max output tokens",
+            "type": "number",
+            "min": 1,
+            "max": 65536,
+            "default": 65536
+          }
+        ],
+        "tools": [
+          {
+            "key": "structured_output",
+            "label": "Structured outputs"
+          },
+          {
+            "key": "code_execution",
+            "label": "Code execution"
+          },
+          {
+            "key": "url_context",
+            "label": "URL context"
+          }
+        ]
       },
       {
         "id": "anthropic/claude-opus-4",
         "name": "Claude Opus 4",
         "description": "Most capable Anthropic model",
-        "multimodal": ["image"]
-      },
-      {
-        "id": "openai/gpt-4o",
-        "name": "GPT-4o",
-        "description": "Versatile multimodal model",
-        "multimodal": ["image"]
-      },
-      {
-        "id": "openai/o3-mini",
-        "name": "o3-mini",
-        "description": "Fast reasoning model",
-        "multimodal": []
+        "multimodal": [
+          "image"
+        ],
+        "params": [
+          {
+            "key": "temperature",
+            "label": "Temperature",
+            "type": "slider",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 1.0
+          },
+          {
+            "key": "top_p",
+            "label": "Top P",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "default": 1.0
+          },
+          {
+            "key": "top_k",
+            "label": "Top K",
+            "type": "number",
+            "min": 0,
+            "max": 500,
+            "default": 0
+          },
+          {
+            "key": "max_tokens",
+            "label": "Max output tokens",
+            "type": "number",
+            "min": 1,
+            "max": 65536,
+            "default": 65536
+          }
+        ],
+        "tools": []
       },
       {
         "id": "deepseek/deepseek-r1",
         "name": "DeepSeek R1",
         "description": "Open-source reasoning model",
-        "multimodal": []
+        "multimodal": [],
+        "params": [
+          {
+            "key": "temperature",
+            "label": "Temperature",
+            "type": "slider",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 1.0
+          },
+          {
+            "key": "top_p",
+            "label": "Top P",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "default": 1.0
+          },
+          {
+            "key": "top_k",
+            "label": "Top K",
+            "type": "number",
+            "min": 0,
+            "max": 500,
+            "default": 0
+          },
+          {
+            "key": "max_tokens",
+            "label": "Max output tokens",
+            "type": "number",
+            "min": 1,
+            "max": 65536,
+            "default": 65536
+          }
+        ],
+        "tools": []
       },
       {
-        "id": "meta-llama/llama-4-maverick",
-        "name": "Llama 4 Maverick",
-        "description": "Open-source foundation model",
-        "multimodal": ["image"]
+        "id": "openai/gpt-5.2-chat",
+        "name": "OpenAI: GPT-5.2 Chat",
+        "description": "GPT-5.2 Chat (AKA Instant) is the fast, lightweight member of the 5.2 family, optimized for low-late",
+        "multimodal": [
+          "image"
+        ],
+        "params": [
+          {
+            "key": "temperature",
+            "label": "Temperature",
+            "type": "slider",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 1
+          },
+          {
+            "key": "top_p",
+            "label": "Top P",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "default": 1
+          },
+          {
+            "key": "top_k",
+            "label": "Top K",
+            "type": "number",
+            "min": 0,
+            "max": 500,
+            "default": 0
+          },
+          {
+            "key": "max_tokens",
+            "label": "Max output tokens",
+            "type": "number",
+            "min": 1,
+            "max": 128000,
+            "default": 128000
+          }
+        ],
+        "tools": []
+      },
+      {
+        "id": "google/gemini-3-flash-preview",
+        "name": "Google: Gemini 3 Flash Preview",
+        "description": "Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, mu",
+        "multimodal": [
+          "image",
+          "video",
+          "audio"
+        ],
+        "params": [
+          {
+            "key": "temperature",
+            "label": "Temperature",
+            "type": "slider",
+            "min": 0,
+            "max": 2,
+            "step": 0.05,
+            "default": 1
+          },
+          {
+            "key": "top_p",
+            "label": "Top P",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "default": 1
+          },
+          {
+            "key": "top_k",
+            "label": "Top K",
+            "type": "number",
+            "min": 0,
+            "max": 500,
+            "default": 0
+          },
+          {
+            "key": "max_tokens",
+            "label": "Max output tokens",
+            "type": "number",
+            "min": 1,
+            "max": 1048576,
+            "default": 1048576
+          }
+        ],
+        "tools": []
       }
-    ],
-    "params": [
-      {
-        "key": "temperature",
-        "label": "Temperature",
-        "type": "slider",
-        "min": 0,
-        "max": 2,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_p",
-        "label": "Top P",
-        "type": "slider",
-        "min": 0,
-        "max": 1,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_k",
-        "label": "Top K",
-        "type": "number",
-        "min": 0,
-        "max": 500,
-        "default": 0
-      },
-      {
-        "key": "max_tokens",
-        "label": "Max output tokens",
-        "type": "number",
-        "min": 1,
-        "max": 65536,
-        "default": 4096
-      }
-    ],
-    "tools": [
-      { "key": "structured_output", "label": "Structured outputs" },
-      { "key": "code_execution", "label": "Code execution" },
-      { "key": "url_context", "label": "URL context" }
     ]
-  },
-  "google": {
-    "name": "Google AI",
-    "description": "Direct Google Gemini API access",
-    "models": [
-      {
-        "id": "gemini-3-pro-preview",
-        "name": "Gemini 3 Pro Preview",
-        "description": "Most intelligent model",
-        "multimodal": ["image", "video", "audio"]
-      },
-      {
-        "id": "gemini-2.5-flash-preview",
-        "name": "Gemini 2.5 Flash Preview",
-        "description": "Fast and efficient",
-        "multimodal": ["image", "video", "audio"]
-      }
-    ],
-    "params": [
-      {
-        "key": "temperature",
-        "label": "Temperature",
-        "type": "slider",
-        "min": 0,
-        "max": 2,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_p",
-        "label": "Top P",
-        "type": "slider",
-        "min": 0,
-        "max": 1,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_k",
-        "label": "Top K",
-        "type": "number",
-        "min": 0,
-        "max": 500,
-        "default": 40
-      },
-      {
-        "key": "max_tokens",
-        "label": "Max output tokens",
-        "type": "number",
-        "min": 1,
-        "max": 65536,
-        "default": 4096
-      }
-    ],
-    "tools": [
-      { "key": "code_execution", "label": "Code execution" },
-      { "key": "url_context", "label": "URL context" }
-    ]
-  },
-  "anthropic": {
-    "name": "Anthropic",
-    "description": "Direct Anthropic Claude API access",
-    "models": [
-      {
-        "id": "claude-sonnet-4",
-        "name": "Claude Sonnet 4",
-        "description": "Balanced performance",
-        "multimodal": ["image"]
-      },
-      {
-        "id": "claude-opus-4",
-        "name": "Claude Opus 4",
-        "description": "Most capable model",
-        "multimodal": ["image"]
-      }
-    ],
-    "params": [
-      {
-        "key": "temperature",
-        "label": "Temperature",
-        "type": "slider",
-        "min": 0,
-        "max": 1,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_p",
-        "label": "Top P",
-        "type": "slider",
-        "min": 0,
-        "max": 1,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_k",
-        "label": "Top K",
-        "type": "number",
-        "min": 0,
-        "max": 500,
-        "default": 0
-      },
-      {
-        "key": "max_tokens",
-        "label": "Max output tokens",
-        "type": "number",
-        "min": 1,
-        "max": 32768,
-        "default": 4096
-      }
-    ],
-    "tools": []
-  },
-  "openai": {
-    "name": "OpenAI",
-    "description": "Direct OpenAI API access",
-    "models": [
-      {
-        "id": "gpt-4o",
-        "name": "GPT-4o",
-        "description": "Versatile multimodal model",
-        "multimodal": ["image"]
-      },
-      {
-        "id": "o3-mini",
-        "name": "o3-mini",
-        "description": "Fast reasoning model",
-        "multimodal": []
-      }
-    ],
-    "params": [
-      {
-        "key": "temperature",
-        "label": "Temperature",
-        "type": "slider",
-        "min": 0,
-        "max": 2,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "top_p",
-        "label": "Top P",
-        "type": "slider",
-        "min": 0,
-        "max": 1,
-        "step": 0.05,
-        "default": 1.0
-      },
-      {
-        "key": "max_tokens",
-        "label": "Max output tokens",
-        "type": "number",
-        "min": 1,
-        "max": 128000,
-        "default": 4096
-      }
-    ],
-    "tools": []
   }
 }

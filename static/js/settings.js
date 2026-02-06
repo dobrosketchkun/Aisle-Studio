@@ -32,26 +32,33 @@ const Settings = {
     descEl.textContent = descText;
   },
 
-  /** Render all parameter controls from provider schema */
+  /** Get the current model schema from providers.json */
+  _getModelSchema() {
+    const s = App.currentChat?.settings;
+    if (!s) return null;
+    const provider = App.providers[s.provider];
+    return provider?.models.find(m => m.id === s.model) || null;
+  },
+
+  /** Render all parameter controls from model schema */
   renderDynamicControls() {
     const container = document.getElementById('dynamic-settings');
     if (!container) return;
     container.innerHTML = '';
 
-    const s = App.currentChat.settings;
-    const providerSchema = App.providers[s.provider];
-    if (!providerSchema) return;
+    const model = this._getModelSchema();
+    if (!model) return;
 
-    const params = s.params || {};
+    const params = App.currentChat.settings.params || {};
 
     // Parameter controls
-    for (const param of providerSchema.params || []) {
+    for (const param of model.params || []) {
       const value = params[param.key] !== undefined ? params[param.key] : param.default;
       container.appendChild(this._createControl(param, value));
     }
 
     // Tools group
-    const tools = providerSchema.tools || [];
+    const tools = model.tools || [];
     if (tools.length > 0) {
       const divider = document.createElement('div');
       divider.className = 'settings-divider';
@@ -207,14 +214,13 @@ const Settings = {
     App.saveChat();
   },
 
-  /** Reset all params to provider defaults */
+  /** Reset all params to model defaults */
   resetToDefaults() {
     if (!App.currentChat) return;
-    const providerKey = App.currentChat.settings.provider;
-    const schema = App.providers[providerKey];
-    if (!schema) return;
+    const model = this._getModelSchema();
+    if (!model) return;
     const defaults = {};
-    for (const p of schema.params || []) {
+    for (const p of model.params || []) {
       defaults[p.key] = p.default;
     }
     App.currentChat.settings.params = defaults;
@@ -240,9 +246,14 @@ const Settings = {
       <div class="modal model-picker-modal">
         <div class="modal-header">
           <h3>Select a model</h3>
-          <button class="icon-btn icon-btn-sm modal-close-btn">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+          <div class="modal-header-actions">
+            <button class="icon-btn icon-btn-sm add-model-btn" title="Add model from OpenRouter">
+              <span class="material-symbols-outlined">add</span>
+            </button>
+            <button class="icon-btn icon-btn-sm modal-close-btn">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
         </div>
         <div class="model-picker-tabs"></div>
         <div class="model-picker-list"></div>
@@ -278,22 +289,43 @@ const Settings = {
           const icons = { image: 'image', video: 'videocam', audio: 'mic' };
           return `<span class="model-cap-badge" title="${c}"><span class="material-symbols-outlined">${icons[c] || 'attachment'}</span></span>`;
         }).join('');
+        const deleteBtn = isActive ? '' : `<button class="model-picker-delete" data-model-id="${m.id}" title="Remove model"><span class="material-symbols-outlined">delete</span></button>`;
         return `
-          <button class="model-picker-item${isActive ? ' active' : ''}" data-model-id="${m.id}">
-            <div class="model-picker-item-header">
-              <div class="model-picker-item-name">${m.name}</div>
-              ${caps ? `<div class="model-cap-badges">${caps}</div>` : ''}
+          <div class="model-picker-item${isActive ? ' active' : ''}" data-model-id="${m.id}">
+            <div class="model-picker-item-body" data-model-id="${m.id}">
+              <div class="model-picker-item-header">
+                <div class="model-picker-item-name">${m.name}</div>
+                ${caps ? `<div class="model-cap-badges">${caps}</div>` : ''}
+              </div>
+              <div class="model-picker-item-id">${m.id}</div>
+              <div class="model-picker-item-desc">${m.description || ''}</div>
             </div>
-            <div class="model-picker-item-id">${m.id}</div>
-            <div class="model-picker-item-desc">${m.description || ''}</div>
-          </button>`;
+            ${deleteBtn}
+          </div>`;
       }).join('');
 
-      listContainer.querySelectorAll('.model-picker-item').forEach(item => {
-        item.addEventListener('click', () => {
-          const modelId = item.dataset.modelId;
+      // Select model on body click
+      listContainer.querySelectorAll('.model-picker-item-body').forEach(body => {
+        body.addEventListener('click', () => {
+          const modelId = body.dataset.modelId;
           this._selectModel(activeProvider, modelId);
           overlay.remove();
+        });
+      });
+
+      // Delete model
+      listContainer.querySelectorAll('.model-picker-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const modelId = btn.dataset.modelId;
+          if (!confirm(`Remove "${modelId}" from the model list?`)) return;
+          try {
+            const updated = await App.api('DELETE', `/api/providers/${activeProvider}/models/${encodeURIComponent(modelId)}`);
+            App.providers[activeProvider] = updated;
+            renderModels();
+          } catch (err) {
+            console.error('Delete model failed:', err);
+          }
         });
       });
     };
@@ -302,28 +334,205 @@ const Settings = {
     renderModels();
 
     overlay.querySelector('.modal-close-btn').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('.add-model-btn').addEventListener('click', () => {
+      overlay.remove();
+      this.showAddModelModal();
+    });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();
     });
   },
 
+  /** Show modal to browse and add OpenRouter models */
+  async showAddModelModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal add-model-modal">
+        <div class="modal-header">
+          <h3>Add model from OpenRouter</h3>
+          <button class="icon-btn icon-btn-sm modal-close-btn">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="add-model-controls">
+          <div class="history-search-wrap">
+            <span class="material-symbols-outlined">search</span>
+            <input type="text" class="add-model-search" placeholder="Search models..." autocomplete="off">
+          </div>
+        </div>
+        <div class="add-model-list">
+          <div class="add-model-loading">Loading models from OpenRouter...</div>
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+    overlay.querySelector('.modal-close-btn').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Fetch models
+    let allModels = [];
+    try {
+      allModels = await App.api('GET', '/api/openrouter/models');
+    } catch (e) {
+      overlay.querySelector('.add-model-list').innerHTML = `<div class="add-model-loading">Failed to load models. Make sure your OpenRouter API key is configured.</div>`;
+      return;
+    }
+
+    // Sort by name
+    allModels.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+
+    const existingIds = new Set((App.providers.openrouter?.models || []).map(m => m.id));
+    let searchQuery = '';
+
+    const parseModality = (modality) => {
+      if (!modality) return [];
+      const input = modality.split('->')[0] || '';
+      const caps = [];
+      if (input.includes('image')) caps.push('image');
+      if (input.includes('video')) caps.push('video');
+      if (input.includes('audio')) caps.push('audio');
+      return caps;
+    };
+
+    const formatPrice = (price) => {
+      if (!price) return '';
+      const p = parseFloat(price);
+      if (isNaN(p) || p === 0) return 'Free';
+      if (p < 0.001) return `$${(p * 1000000).toFixed(2)}/M`;
+      return `$${p.toFixed(4)}/1k`;
+    };
+
+    const renderList = () => {
+      const listEl = overlay.querySelector('.add-model-list');
+      let filtered = allModels;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(m =>
+          (m.name || '').toLowerCase().includes(q) ||
+          (m.id || '').toLowerCase().includes(q)
+        );
+      }
+
+      if (!filtered.length) {
+        listEl.innerHTML = '<div class="add-model-loading">No models found</div>';
+        return;
+      }
+
+      // Show max 100 results for performance
+      const shown = filtered.slice(0, 100);
+      listEl.innerHTML = shown.map(m => {
+        const already = existingIds.has(m.id);
+        const modality = m.architecture?.modality || '';
+        const caps = parseModality(modality);
+        const capsHtml = caps.map(c => {
+          const icons = { image: 'image', video: 'videocam', audio: 'mic' };
+          return `<span class="model-cap-badge" title="${c}"><span class="material-symbols-outlined">${icons[c]}</span></span>`;
+        }).join('');
+        const ctx = m.context_length ? `${(m.context_length / 1000).toFixed(0)}k ctx` : '';
+        const price = formatPrice(m.pricing?.prompt);
+        const meta = [ctx, price].filter(Boolean).join(' · ');
+        return `
+          <div class="add-model-item${already ? ' already-added' : ''}" data-id="${m.id}">
+            <div class="add-model-item-info">
+              <div class="add-model-item-name">${App._escapeHtml(m.name || m.id)}</div>
+              <div class="add-model-item-meta">${m.id}${meta ? ' · ' + meta : ''}</div>
+            </div>
+            <div class="add-model-item-right">
+              ${capsHtml}
+              ${already
+                ? '<span class="add-model-added">Added</span>'
+                : '<button class="add-model-btn-add" title="Add"><span class="material-symbols-outlined">add_circle</span></button>'
+              }
+            </div>
+          </div>`;
+      }).join('');
+
+      if (filtered.length > 100) {
+        listEl.innerHTML += `<div class="add-model-loading">${filtered.length - 100} more results — refine your search</div>`;
+      }
+
+      // Add button handlers
+      listEl.querySelectorAll('.add-model-btn-add').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const item = btn.closest('.add-model-item');
+          const modelId = item.dataset.id;
+          const model = allModels.find(m => m.id === modelId);
+          if (!model) return;
+
+          // Get default params from first existing model
+          const firstModel = App.providers.openrouter?.models[0];
+          const defaultParams = firstModel?.params || [
+            { key: 'temperature', label: 'Temperature', type: 'slider', min: 0, max: 2, step: 0.05, default: 1.0 },
+            { key: 'top_p', label: 'Top P', type: 'slider', min: 0, max: 1, step: 0.05, default: 1.0 },
+            { key: 'max_tokens', label: 'Max output tokens', type: 'number', min: 1, max: 65536, default: 65536 },
+          ];
+
+          const newModel = {
+            id: model.id,
+            name: model.name || model.id,
+            description: (model.description || '').substring(0, 100),
+            multimodal: parseModality(model.architecture?.modality),
+            params: JSON.parse(JSON.stringify(defaultParams)),
+            tools: [],
+          };
+
+          // Update max_tokens if context_length is available
+          if (model.context_length) {
+            const maxTok = newModel.params.find(p => p.key === 'max_tokens');
+            if (maxTok) maxTok.max = model.context_length;
+          }
+
+          try {
+            const updated = await App.api('POST', '/api/providers/openrouter/models', newModel);
+            App.providers.openrouter = updated;
+            existingIds.add(model.id);
+            // Update the item in-place
+            item.classList.add('already-added');
+            item.querySelector('.add-model-item-right').innerHTML =
+              (item.querySelector('.add-model-item-right').querySelectorAll('.model-cap-badge').length > 0
+                ? item.querySelector('.add-model-item-right').innerHTML.replace(/<button.*<\/button>/, '<span class="add-model-added">Added</span>')
+                : '<span class="add-model-added">Added</span>');
+            App.showToast(`Added ${model.name || model.id}`);
+          } catch (err) {
+            App.showToast('Failed to add model');
+            console.error(err);
+          }
+        });
+      });
+    };
+
+    renderList();
+
+    // Search
+    const searchInput = overlay.querySelector('.add-model-search');
+    let searchTimer = null;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchQuery = searchInput.value.trim();
+        renderList();
+      }, 200);
+    });
+    searchInput.focus();
+  },
+
   /** Apply model selection: update settings, re-render panel, save */
   _selectModel(providerKey, modelId) {
     if (!App.currentChat) return;
-    const oldProvider = App.currentChat.settings.provider;
     App.currentChat.settings.provider = providerKey;
     App.currentChat.settings.model = modelId;
 
-    // Reset params to new provider defaults when switching providers
-    if (providerKey !== oldProvider) {
-      const schema = App.providers[providerKey];
-      if (schema) {
-        const defaults = {};
-        for (const p of schema.params || []) {
-          defaults[p.key] = p.default;
-        }
-        App.currentChat.settings.params = defaults;
+    // Reset params to new model's defaults (each model has its own params now)
+    const provider = App.providers[providerKey];
+    const model = provider?.models.find(m => m.id === modelId);
+    if (model) {
+      const defaults = {};
+      for (const p of model.params || []) {
+        defaults[p.key] = p.default;
       }
+      App.currentChat.settings.params = defaults;
     }
 
     this.updateModelCard();

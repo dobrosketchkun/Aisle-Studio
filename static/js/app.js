@@ -489,6 +489,26 @@ const App = {
     return div.innerHTML;
   },
 
+  /** Show a brief toast notification */
+  showToast(message, duration = 3000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  },
+
   openKeyManagementModal() {
     this.api('GET', '/api/keys').then(status => {
       this.keyStatus = status;
