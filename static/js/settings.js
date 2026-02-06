@@ -393,8 +393,4 @@ document.addEventListener('DOMContentLoaded', () => {
     Settings.resetToDefaults();
   });
 
-  // Settings button in sidebar
-  document.getElementById('btn-settings-toggle').addEventListener('click', () => {
-    document.getElementById('right-panel').classList.toggle('collapsed');
-  });
 });

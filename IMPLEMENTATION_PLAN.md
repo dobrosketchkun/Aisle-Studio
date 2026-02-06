@@ -224,6 +224,49 @@ The model selector card in the right panel should open a picker modal.
 
 ---
 
+## Phase 9: UX Improvements & Chat Search
+
+### 9a: Token counts per file in messages
+- [ ] **9a.1** In `Chat.renderFileAttachments()`, show estimated token count on each file card
+  - Image: `~N tokens` based on size heuristic
+  - Video: `~N tokens` based on frames × 258
+  - Audio: `~N tokens` based on duration × 25
+  - Text/code: `~N tokens` based on size / 4
+- [ ] **9a.2** Style the token badge (small, muted text below or beside file name)
+
+### 9b: Thoughts UX — collapsed by default + streaming preview
+- [ ] **9b.1** Render thoughts collapsed by default (remove `expanded` class from non-streaming thoughts)
+- [ ] **9b.2** Show a truncated preview of the thought text in the collapsed header (first ~80 chars)
+- [ ] **9b.3** During streaming, show live preview text in the collapsed header so user sees thinking is happening
+- [ ] **9b.4** During streaming, keep thoughts collapsed — user can expand manually if they want
+
+### 9c: Remove unused UI elements
+- [ ] **9c.1** Remove "Tools" button from prompt bar (`.prompt-btn-tools`)
+- [ ] **9c.2** Remove "Settings" button from sidebar bottom (`#btn-settings-toggle`)
+- [ ] **9c.3** Remove "Get code" (`<>`) button from right panel header
+
+### 9d: Resizable right panel
+- [ ] **9d.1** Add a drag handle on the left edge of the right panel
+- [ ] **9d.2** On mousedown, track horizontal drag to resize `--panel-width`
+- [ ] **9d.3** Clamp between min 250px and max 600px
+- [ ] **9d.4** Persist width in localStorage
+- [ ] **9d.5** Style the drag handle (thin vertical bar, cursor: col-resize)
+
+### 9e: Chat history search
+- [ ] **9e.1** Add a search input at the top of the sidebar chat list
+- [ ] **9e.2** Backend: `GET /api/chats/search?q=...&mode=title|content|all` endpoint
+  - `title` mode: filter chats by title substring (fast, in-memory)
+  - `content` mode: search through all message content in chat JSON files
+  - `all` mode: search both title and content
+- [ ] **9e.3** Frontend: debounced search input (300ms) that calls the search endpoint
+- [ ] **9e.4** Render search results in the sidebar, replacing the normal chat list while searching
+- [ ] **9e.5** Search settings dropdown: mode selector (Title / Content / All), with "All" as default
+- [ ] **9e.6** Highlight matching text in search results
+- [ ] **9e.7** Clear search button (x) to return to normal chat list
+- [ ] **9e.8** Style search input and results to match sidebar dark theme
+
+---
+
 ## Execution Order
 
 | Priority | Phases | What you get |
@@ -232,4 +275,5 @@ The model selector card in the right panel should open a picker modal.
 | Next     | 3 → 4  | Multi-provider support, dynamic settings |
 | Then     | 5a, 5b | Better markdown, mermaid diagrams |
 | Then     | 6      | File upload & preview |
-| Last     | 7, 8   | Polish, rerun, API key UI |
+| Then     | 7, 8   | Polish, rerun, API key UI |
+| Last     | 9      | UX improvements, search, resizable panel |

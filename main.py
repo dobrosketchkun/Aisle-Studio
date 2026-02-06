@@ -90,6 +90,7 @@ class ChatUpdate(BaseModel):
     title: str | None = None
     settings: ChatSettings | None = None
     messages: list[Message] | None = None
+    bookmarked: bool | None = None
 
 
 # --- Helpers ---
@@ -266,10 +267,53 @@ def list_chats():
                 "id": data["id"],
                 "title": data["title"],
                 "updated_at": data.get("updated_at", ""),
+                "created_at": data.get("created_at", ""),
+                "bookmarked": data.get("bookmarked", False),
             })
         except (json.JSONDecodeError, KeyError):
             continue  # skip corrupt files
     return chats
+
+
+@app.get("/api/chats/search")
+def search_chats(q: str = "", mode: str = "all"):
+    """Search chats by title, content, or both."""
+    query = q.strip().lower()
+    if not query:
+        return []
+
+    results = []
+    for f in sorted(DATA_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            continue
+
+        title = data.get("title", "")
+        title_match = query in title.lower()
+
+        content_match = False
+        matched_snippet = ""
+        if mode in ("content", "all"):
+            for msg in data.get("messages", []):
+                text = msg.get("content", "")
+                if query in text.lower():
+                    content_match = True
+                    # Extract snippet around match
+                    idx = text.lower().index(query)
+                    start = max(0, idx - 30)
+                    end = min(len(text), idx + len(query) + 50)
+                    matched_snippet = ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
+                    break
+
+        if mode == "title" and title_match:
+            results.append({"id": data["id"], "title": title, "snippet": ""})
+        elif mode == "content" and content_match:
+            results.append({"id": data["id"], "title": title, "snippet": matched_snippet})
+        elif mode == "all" and (title_match or content_match):
+            results.append({"id": data["id"], "title": title, "snippet": matched_snippet if content_match else ""})
+
+    return results
 
 
 @app.post("/api/chats")
@@ -308,6 +352,8 @@ def update_chat(chat_id: str, update: ChatUpdate):
                 d["id"] = str(uuid.uuid4())
             msgs.append(d)
         chat["messages"] = msgs
+    if update.bookmarked is not None:
+        chat["bookmarked"] = update.bookmarked
     _write_chat(chat)
     return chat
 

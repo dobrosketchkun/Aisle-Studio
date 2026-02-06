@@ -138,8 +138,11 @@ const Chat = {
 
     // Build message HTML
     let html = '';
-    for (const msg of App.currentChat.messages) {
-      html += this.renderTurn(msg);
+    for (let i = 0; i < App.currentChat.messages.length; i++) {
+      const msg = App.currentChat.messages[i];
+      const prev = i > 0 ? App.currentChat.messages[i - 1] : null;
+      const showLabel = !prev || prev.role !== msg.role;
+      html += this.renderTurn(msg, showLabel);
     }
     container.innerHTML = html;
 
@@ -165,14 +168,16 @@ const Chat = {
   },
 
   /** Render a single chat turn */
-  renderTurn(msg) {
+  renderTurn(msg, showLabel = true) {
     const isUser = msg.role === 'user';
     const roleLabel = isUser ? 'User' : 'Model';
     const labelClass = isUser ? 'user-label' : '';
+    const continuationClass = showLabel ? '' : ' continuation';
 
-    let contentHtml;
+    const hasContent = msg.content && msg.content.trim().length > 0;
+    let contentHtml = '';
     if (isUser) {
-      contentHtml = `<div class="user-text">${this.escapeHtml(msg.content)}</div>`;
+      if (hasContent) contentHtml = `<div class="user-text">${this.escapeHtml(msg.content)}</div>`;
     } else {
       contentHtml = this.renderModelContent(msg);
     }
@@ -188,10 +193,11 @@ const Chat = {
     </svg>`;
 
     const filesHtml = this.renderFileAttachments(msg.files, App.currentChat?.id, msg.id);
+    const labelHtml = showLabel ? `<div class="turn-role-label ${labelClass}">${roleLabel}</div>` : '';
 
     return `
-      <div class="chat-turn" data-msg-id="${msg.id}">
-        <div class="turn-role-label ${labelClass}">${roleLabel}</div>
+      <div class="chat-turn${continuationClass}" data-msg-id="${msg.id}">
+        ${labelHtml}
         <div class="turn-content">
           ${filesHtml}
           ${contentHtml}
@@ -214,8 +220,9 @@ const Chat = {
   renderModelContent(msg) {
     let html = '';
 
-    // Thoughts section
+    // Thoughts section — collapsed by default, with preview snippet
     if (msg.thoughts) {
+      const preview = msg.thoughts.replace(/\n/g, ' ').substring(0, 80) + (msg.thoughts.length > 80 ? '...' : '');
       html += `
         <div class="thoughts-section" onclick="Chat.toggleThoughts(this)">
           <div class="thoughts-header">
@@ -228,7 +235,7 @@ const Chat = {
               <path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="url(#think-grad)"/>
             </svg>
             <span class="thoughts-label">Thoughts</span>
-            <span class="thoughts-summary">Expand to view model thoughts</span>
+            <span class="thoughts-summary">${this.escapeHtml(preview)}</span>
             <span class="material-symbols-outlined thoughts-expand-icon">expand_more</span>
           </div>
           <div class="thoughts-body">
@@ -340,8 +347,14 @@ const Chat = {
       // Delete this model message and everything after
       App.currentChat.messages = messages.slice(0, idx);
     } else {
-      // User message: delete everything after it
-      App.currentChat.messages = messages.slice(0, idx + 1);
+      // User message: find the end of the consecutive user group
+      // (file msgs + text msg are all separate user messages now)
+      let endIdx = idx;
+      while (endIdx + 1 < messages.length && messages[endIdx + 1].role === 'user') {
+        endIdx++;
+      }
+      // Keep the entire user group, delete everything after
+      App.currentChat.messages = messages.slice(0, endIdx + 1);
     }
 
     App.saveChat().then(() => {
@@ -440,10 +453,19 @@ const Chat = {
     const area = turn.querySelector('.streaming-content');
     if (!area) return;
 
+    // Preserve expanded state if user already toggled it
+    const existingThoughts = area.querySelector('.thoughts-section');
+    const isExpanded = existingThoughts ? existingThoughts.classList.contains('expanded') : false;
+
     let html = '';
     if (thoughts) {
+      // Show the tail of thoughts so the preview visibly changes during streaming
+      const stripped = thoughts.replace(/\n/g, ' ');
+      const preview = stripped.length > 80
+        ? '...' + stripped.substring(stripped.length - 80)
+        : stripped;
       html += `
-        <div class="thoughts-section expanded" onclick="Chat.toggleThoughts(this)">
+        <div class="thoughts-section${isExpanded ? ' expanded' : ''}" onclick="Chat.toggleThoughts(this)">
           <div class="thoughts-header">
             <svg class="thoughts-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs><linearGradient id="think-grad-s" x1="0" y1="0" x2="1" y2="1">
@@ -454,7 +476,7 @@ const Chat = {
               <path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="url(#think-grad-s)"/>
             </svg>
             <span class="thoughts-label">Thinking</span>
-            <span class="thoughts-summary"></span>
+            <span class="thoughts-summary">${this.escapeHtml(preview)}</span>
             <span class="material-symbols-outlined thoughts-expand-icon">expand_more</span>
           </div>
           <div class="thoughts-body">
@@ -520,7 +542,10 @@ const Chat = {
       await App.createChat();
     }
 
-    for (const file of fileList) {
+    // Convert to array immediately — FileList is a live object tied to the
+    // <input> element and may be emptied when the input value is reset.
+    const files = Array.from(fileList);
+    for (const file of files) {
       const formData = new FormData();
       formData.append('file', file);
 
@@ -725,12 +750,17 @@ const Chat = {
     const ext = (file.name || '').split('.').pop().toLowerCase();
     const safeName = this.escapeHtml(file.name || 'file');
     const deleteBtn = `<button class="file-card-delete" onclick="event.stopPropagation(); App.deleteFileFromMessage('${msgId}', ${index})" title="Remove file"><span class="material-symbols-outlined">close</span></button>`;
+    const tokens = this._estimateTokens(file);
+    const tokenBadge = tokens > 0 ? `<div class="file-card-tokens">~${tokens.toLocaleString()} tokens</div>` : '';
 
     if (type === 'image') {
       return `<div class="file-card file-card-image">
         ${deleteBtn}
         <img src="${url}" alt="${safeName}" loading="lazy" onclick="Chat.openLightbox('${url}', '${safeName}')">
-        <div class="file-card-name">${safeName}</div>
+        <div class="file-card-image-footer">
+          <div class="file-card-name">${safeName}</div>
+          ${tokenBadge}
+        </div>
       </div>`;
     }
 
@@ -743,7 +773,7 @@ const Chat = {
         </div>
         <div class="file-card-info">
           <div class="file-card-name">${safeName}</div>
-          <div class="file-card-size">${this._formatSize(file.size)}</div>
+          <div class="file-card-size">${this._formatSize(file.size)}${tokenBadge}</div>
         </div>
       </div>`;
     }
@@ -751,7 +781,7 @@ const Chat = {
     if (type === 'audio') {
       return `<div class="file-card file-card-audio">
         ${deleteBtn}
-        <div class="file-card-name"><span class="material-symbols-outlined">audio_file</span>${safeName}</div>
+        <div class="file-card-name"><span class="material-symbols-outlined">audio_file</span>${safeName}${tokenBadge}</div>
         <audio controls preload="metadata" src="${url}"></audio>
       </div>`;
     }
@@ -763,7 +793,7 @@ const Chat = {
         <span class="material-symbols-outlined">description</span>
         <div class="file-card-info">
           <div class="file-card-name">${safeName}</div>
-          <div class="file-card-size">${this._formatSize(file.size)}</div>
+          <div class="file-card-size">${this._formatSize(file.size)}${tokenBadge}</div>
         </div>
       </div>`;
     }
@@ -774,7 +804,7 @@ const Chat = {
         <span class="material-symbols-outlined">picture_as_pdf</span>
         <div class="file-card-info">
           <div class="file-card-name">${safeName}</div>
-          <div class="file-card-size">${this._formatSize(file.size)}</div>
+          <div class="file-card-size">${this._formatSize(file.size)}${tokenBadge}</div>
         </div>
       </div>`;
     }
@@ -784,7 +814,7 @@ const Chat = {
       <span class="material-symbols-outlined">attach_file</span>
       <div class="file-card-info">
         <div class="file-card-name">${safeName}</div>
-        <div class="file-card-size">${this._formatSize(file.size)}</div>
+        <div class="file-card-size">${this._formatSize(file.size)}${tokenBadge}</div>
       </div>
     </div>`;
   },
@@ -1036,6 +1066,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  /** Add files as separate messages + text as its own message, save once */
+  async function addUserTurn(content, files) {
+    // Each file becomes its own message
+    for (const file of files) {
+      App.currentChat.messages.push({
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: '',
+        thoughts: '',
+        files: [file],
+      });
+    }
+    // Text becomes its own message (if any)
+    if (content) {
+      App.currentChat.messages.push({
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: content,
+        thoughts: '',
+        files: [],
+      });
+    }
+    await App.saveChat();
+    Chat.render();
+    App.updateTokenCount();
+  }
+
   async function submitMessage() {
     // If currently generating, treat as Stop
     if (App.isGenerating) {
@@ -1058,8 +1115,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await App.createChat();
     }
 
-    // Add user message with files
-    await App.addUserMessage(content, files);
+    await addUserTurn(content, files);
 
     // Auto-title from first user message
     if (App.currentChat.title === 'Untitled chat' && content) {
@@ -1086,7 +1142,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await App.createChat();
     }
 
-    await App.addUserMessage(content, files);
+    await addUserTurn(content, files);
 
     if (App.currentChat.title === 'Untitled chat' && content) {
       const title = content.substring(0, 50) + (content.length > 50 ? '...' : '');

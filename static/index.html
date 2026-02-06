@@ -45,11 +45,29 @@
 
         <div class="nav-divider"></div>
 
-        <!-- Playground section with history -->
+        <!-- Search -->
+        <div class="sidebar-search">
+          <div class="sidebar-search-input-wrap">
+            <span class="material-symbols-outlined sidebar-search-icon">search</span>
+            <input type="text" id="sidebar-search-input" placeholder="Search chats..." autocomplete="off">
+            <button id="sidebar-search-clear" class="sidebar-search-clear" style="display:none;">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="sidebar-search-modes">
+            <button class="search-mode-btn active" data-mode="all">All</button>
+            <button class="search-mode-btn" data-mode="title">Title</button>
+            <button class="search-mode-btn" data-mode="content">Content</button>
+          </div>
+        </div>
+
+        <!-- Chat history -->
         <div class="nav-section">
-          <div class="nav-section-header">
-            <span class="material-symbols-outlined">chat_bubble</span>
-            <span class="nav-item-text">Chats</span>
+          <div class="nav-section-header-row">
+            <span class="nav-section-label">Recent</span>
+            <button id="btn-view-all-history" class="nav-view-all-btn" title="View all chats">
+              <span class="material-symbols-outlined">open_in_full</span>
+            </button>
           </div>
           <ul id="chat-history-list" class="chat-history-list">
             <!-- Populated by sidebar.js -->
@@ -57,12 +75,7 @@
         </div>
       </div>
 
-      <div class="sidebar-bottom">
-        <button class="nav-item" id="btn-settings-toggle">
-          <span class="material-symbols-outlined">settings</span>
-          <span class="nav-item-text">Settings</span>
-        </button>
-      </div>
+      <div class="sidebar-bottom"></div>
     </nav>
 
     <!-- ============ MAIN CONTENT ============ -->
@@ -120,10 +133,6 @@
               <button id="btn-api-key" class="prompt-btn" title="API Key">
                 <span class="material-symbols-outlined">key_off</span>
               </button>
-              <button class="prompt-btn prompt-btn-tools" title="Tools">
-                <span class="material-symbols-outlined">widgets</span>
-                <span>Tools</span>
-              </button>
             </div>
             <div class="prompt-buttons-right">
               <button class="prompt-btn" title="Attach files">
@@ -141,12 +150,10 @@
 
     <!-- ============ RIGHT PANEL ============ -->
     <aside id="right-panel" class="right-panel">
+      <div id="panel-resize-handle" class="panel-resize-handle"></div>
       <div class="panel-header">
         <h2>Run settings</h2>
         <div class="panel-header-actions">
-          <button class="icon-btn icon-btn-sm" title="Get code">
-            <span class="material-symbols-outlined">code</span>
-          </button>
           <button id="btn-reset-settings" class="icon-btn icon-btn-sm" title="Reset settings">
             <span class="material-symbols-outlined">reset_settings</span>
           </button>
@@ -199,9 +206,9 @@
   </div>
 
   <input type="file" id="file-input" multiple hidden>
-  <script src="/static/js/app.js?v=10"></script>
-  <script src="/static/js/sidebar.js?v=10"></script>
-  <script src="/static/js/chat.js?v=10"></script>
-  <script src="/static/js/settings.js?v=10"></script>
+  <script src="/static/js/app.js?v=16"></script>
+  <script src="/static/js/sidebar.js?v=16"></script>
+  <script src="/static/js/chat.js?v=16"></script>
+  <script src="/static/js/settings.js?v=16"></script>
 </body>
 </html>
