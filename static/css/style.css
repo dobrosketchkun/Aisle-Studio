@@ -1317,6 +1317,45 @@ ul { list-style: none; }
 }
 
 /* ============================================================
+   MERMAID DIAGRAMS
+   ============================================================ */
+.mermaid-container {
+  background: var(--surface-container);
+  border: 1px solid var(--outline-subtle);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-fallback {
+  text-align: left;
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ============================================================
+   KATEX / MATH
+   ============================================================ */
+.katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.katex-error {
+  color: #f87171;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+/* ============================================================
    MODEL PICKER MODAL
    ============================================================ */
 .model-picker-modal {

@@ -124,29 +124,29 @@ The model selector card in the right panel should open a picker modal.
 ## Phase 5: Markdown Improvements
 
 ### 5a: Full highlight.js bundle
-- [ ] **5a.1** Replace the highlight.js CDN URL in `index.html` with the full language bundle:
+- [x] **5a.1** Replace the highlight.js CDN URL in `index.html` with the full language bundle:
   - Use `highlight.min.js` from cdnjs/jsdelivr that includes ALL languages
   - Or load the core + register additional languages individually
-- [ ] **5a.2** Verify: code blocks with Python, Rust, Go, SQL, YAML, Dockerfile etc. all highlight correctly
+- [x] **5a.2** Verify: code blocks with Python, Rust, Go, SQL, YAML, Dockerfile etc. all highlight correctly
 
 ### 5b: Mermaid diagrams
-- [ ] **5b.1** Add mermaid.js CDN script to `index.html`
-- [ ] **5b.2** In `chat.js`, update the `marked.Renderer.code` to detect language `"mermaid"`:
-  - [ ] Instead of syntax highlighting, render into a `<div class="mermaid-container">` with the raw source
-  - [ ] After render, call `mermaid.run()` on those containers
-- [ ] **5b.3** Configure mermaid with dark theme to match the app
-- [ ] **5b.4** Add fallback: if mermaid parse fails, show as regular code block with small error note
-- [ ] **5b.5** Add CSS for `.mermaid-container` (border, padding, same style as code blocks)
-- [ ] **5b.6** Test: send a message asking the model to generate a mermaid diagram
+- [x] **5b.1** Add mermaid.js CDN script to `index.html`
+- [x] **5b.2** In `chat.js`, update the `marked.Renderer.code` to detect language `"mermaid"`:
+  - [x] Instead of syntax highlighting, render into a `<div class="mermaid-container">` with the raw source
+  - [x] After render, call `mermaid.run()` on those containers
+- [x] **5b.3** Configure mermaid with dark theme to match the app
+- [x] **5b.4** Add fallback: if mermaid parse fails, show as regular code block with small error note
+- [x] **5b.5** Add CSS for `.mermaid-container` (border, padding, same style as code blocks)
+- [x] **5b.6** Test: send a message asking the model to generate a mermaid diagram
 
 ### 5c: LaTeX math rendering
-- [ ] **5c.1** Add KaTeX CSS + JS CDN to `index.html`
-- [ ] **5c.2** Add a marked extension (or post-process) to detect LaTeX delimiters:
-  - [ ] `$$...$$` and `\[...\]` for display math (block)
-  - [ ] `$...$` and `\(...\)` for inline math
-- [ ] **5c.3** Render detected math with `katex.renderToString()`
-- [ ] **5c.4** Handle render errors gracefully (show raw LaTeX on failure)
-- [ ] **5c.5** Test: send a message asking the model for equations
+- [x] **5c.1** Add KaTeX CSS + JS CDN to `index.html`
+- [x] **5c.2** Add a marked extension (or post-process) to detect LaTeX delimiters:
+  - [x] `$$...$$` and `\[...\]` for display math (block)
+  - [x] `$...$` and `\(...\)` for inline math
+- [x] **5c.3** Render detected math with `katex.renderToString()`
+- [x] **5c.4** Handle render errors gracefully (show raw LaTeX on failure)
+- [x] **5c.5** Test: send a message asking the model for equations
 
 ---
 

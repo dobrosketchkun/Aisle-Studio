@@ -3,11 +3,34 @@
    ============================================================ */
 
 const Chat = {
-  /** Configure marked.js with custom code block renderer */
+  /** Configure marked.js, mermaid, and KaTeX */
   init() {
+    // Mermaid config
+    if (typeof mermaid !== 'undefined') {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: '#1f1f1f',
+          primaryColor: '#87a9ff',
+          primaryTextColor: '#d4d4d4',
+          lineColor: '#555',
+        },
+      });
+    }
+
     const renderer = new marked.Renderer();
-    // Custom code block rendering with header bar
+
+    // Custom code block rendering — handles mermaid + syntax highlighting
     renderer.code = function ({ text, lang }) {
+      // Mermaid diagrams
+      if (lang === 'mermaid') {
+        const id = 'mermaid-' + Math.random().toString(36).slice(2, 10);
+        const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<div class="mermaid-container" data-mermaid-id="${id}" data-mermaid-src="${encodeURIComponent(text)}"><pre class="mermaid-fallback"><code>${escaped}</code></pre></div>`;
+      }
+
       const language = lang || 'plaintext';
       let highlighted;
       try {
@@ -15,7 +38,6 @@ const Chat = {
       } catch {
         highlighted = hljs.highlightAuto(text).value;
       }
-      const escapedCode = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return `
         <div class="code-block-wrapper">
           <div class="code-block-header">
@@ -43,6 +65,63 @@ const Chat = {
     });
   },
 
+  /** Process LaTeX in an HTML string — call AFTER marked but BEFORE inserting into DOM */
+  _renderLatex(html) {
+    if (typeof katex === 'undefined') return html;
+
+    // 1. Protect <pre>…</pre> and <code>…</code> blocks from LaTeX processing
+    const protected = [];
+    html = html.replace(/<(pre|code)([\s\S]*?)>[\s\S]*?<\/\1>/gi, (match) => {
+      const idx = protected.length;
+      protected.push(match);
+      return `\x00PROTECT${idx}\x00`;
+    });
+
+    // Helper: strip <br> / <br/> tags that marked injects into multi-line math
+    const clean = (tex) => tex.replace(/<br\s*\/?>/gi, '\n').trim();
+
+    // 2. Display math: $$...$$ and \[...\]
+    html = html.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
+      try { return katex.renderToString(clean(tex), { displayMode: true, throwOnError: false }); }
+      catch { return `<span class="katex-error">$$${tex}$$</span>`; }
+    });
+    html = html.replace(/\\\[([\s\S]+?)\\\]/g, (_, tex) => {
+      try { return katex.renderToString(clean(tex), { displayMode: true, throwOnError: false }); }
+      catch { return `<span class="katex-error">\\[${tex}\\]</span>`; }
+    });
+
+    // 3. Inline math: $...$ (but not $$) and \(...\)
+    html = html.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (_, tex) => {
+      try { return katex.renderToString(clean(tex), { displayMode: false, throwOnError: false }); }
+      catch { return `<span class="katex-error">$${tex}$</span>`; }
+    });
+    html = html.replace(/\\\((.+?)\\\)/g, (_, tex) => {
+      try { return katex.renderToString(clean(tex), { displayMode: false, throwOnError: false }); }
+      catch { return `<span class="katex-error">\\(${tex}\\)</span>`; }
+    });
+
+    // 4. Restore protected blocks
+    html = html.replace(/\x00PROTECT(\d+)\x00/g, (_, i) => protected[+i]);
+
+    return html;
+  },
+
+  /** Render mermaid diagrams in the DOM (call after innerHTML is set) */
+  _renderMermaidInContainer(container) {
+    if (typeof mermaid === 'undefined') return;
+    container.querySelectorAll('.mermaid-container').forEach(async (el) => {
+      const src = decodeURIComponent(el.dataset.mermaidSrc || '');
+      const id = el.dataset.mermaidId;
+      if (!src) return;
+      try {
+        const { svg } = await mermaid.render(id, src);
+        el.innerHTML = svg;
+      } catch {
+        // Parse failed — keep the fallback code block visible
+      }
+    });
+  },
+
   /** Render all messages for the current chat */
   render() {
     const container = document.getElementById('chat-messages');
@@ -63,6 +142,9 @@ const Chat = {
       html += this.renderTurn(msg);
     }
     container.innerHTML = html;
+
+    // Render mermaid diagrams
+    this._renderMermaidInContainer(container);
 
     // Scroll to bottom
     container.scrollTop = container.scrollHeight;
@@ -144,13 +226,13 @@ const Chat = {
             <span class="material-symbols-outlined thoughts-expand-icon">expand_more</span>
           </div>
           <div class="thoughts-body">
-            <div class="markdown-content">${marked.parse(msg.thoughts)}</div>
+            <div class="markdown-content">${this._renderLatex(marked.parse(msg.thoughts))}</div>
           </div>
         </div>`;
     }
 
     // Main content
-    html += `<div class="markdown-content">${marked.parse(msg.content)}</div>`;
+    html += `<div class="markdown-content">${this._renderLatex(marked.parse(msg.content))}</div>`;
     return html;
   },
 
@@ -347,18 +429,19 @@ const Chat = {
             <span class="material-symbols-outlined thoughts-expand-icon">expand_more</span>
           </div>
           <div class="thoughts-body">
-            <div class="markdown-content">${marked.parse(thoughts)}</div>
+            <div class="markdown-content">${this._renderLatex(marked.parse(thoughts))}</div>
           </div>
         </div>`;
     }
 
     if (content) {
-      html += `<div class="markdown-content">${marked.parse(content)}</div>`;
+      html += `<div class="markdown-content">${this._renderLatex(marked.parse(content))}</div>`;
     } else if (!thoughts) {
       html += '<span class="streaming-cursor"></span>';
     }
 
     area.innerHTML = html;
+    this._renderMermaidInContainer(area);
     this.scrollToBottom();
   },
 
