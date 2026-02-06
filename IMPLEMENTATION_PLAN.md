@@ -49,24 +49,24 @@ The skeleton has CRUD for chats but **zero** LLM integration. We need a streamin
 
 Currently `submitMessage()` in `chat.js` saves the user message but never calls the LLM.
 
-- [ ] **2.1** In `app.js`, add `App.generateResponse()` method:
-  - [ ] Call `POST /api/chats/{id}/generate`
-  - [ ] Read the SSE stream with `EventSource` or `fetch` + `ReadableStream`
-  - [ ] Create a placeholder model message in the UI immediately (empty content, spinner/cursor)
-  - [ ] On each SSE `data` chunk, parse the delta and append to the placeholder's content
-  - [ ] Re-render markdown incrementally (or on a throttle/debounce, e.g. every 100ms)
-  - [ ] On stream `[DONE]`, finalize the message, reload chat from server to sync state
-  - [ ] On SSE error event, show error inline in the model message bubble (red text)
-- [ ] **2.2** Wire `submitMessage()` in `chat.js` to call `App.generateResponse()` after adding the user message
-- [ ] **2.3** Add a "Stop" button that appears during generation:
-  - [ ] Replace the "Run" button with a "Stop" button while streaming
-  - [ ] On click, abort the fetch/stream and keep partial content
-- [ ] **2.4** Disable the prompt textarea + Run button while generating (prevent double-send)
-- [ ] **2.5** Scroll to bottom smoothly during streaming (on each content update)
-- [ ] **2.6** Handle the `thinking` / `thoughts` field from OpenRouter response:
-  - [ ] If the model returns a `reasoning` or `thinking` field in the delta, accumulate it separately
-  - [ ] Render it in the existing thoughts accordion UI
-- [ ] **2.7** Test end-to-end: type a message → see streamed response appear with markdown rendering
+- [x] **2.1** In `app.js`, add `App.generateResponse()` method:
+  - [x] Call `POST /api/chats/{id}/generate`
+  - [x] Read the SSE stream with `EventSource` or `fetch` + `ReadableStream`
+  - [x] Create a placeholder model message in the UI immediately (empty content, spinner/cursor)
+  - [x] On each SSE `data` chunk, parse the delta and append to the placeholder's content
+  - [x] Re-render markdown incrementally (or on a throttle/debounce, e.g. every 100ms)
+  - [x] On stream `[DONE]`, finalize the message, reload chat from server to sync state
+  - [x] On SSE error event, show error inline in the model message bubble (red text)
+- [x] **2.2** Wire `submitMessage()` in `chat.js` to call `App.generateResponse()` after adding the user message
+- [x] **2.3** Add a "Stop" button that appears during generation:
+  - [x] Replace the "Run" button with a "Stop" button while streaming
+  - [x] On click, abort the fetch/stream and keep partial content
+- [x] **2.4** Disable the prompt textarea + Run button while generating (prevent double-send)
+- [x] **2.5** Scroll to bottom smoothly during streaming (on each content update)
+- [x] **2.6** Handle the `thinking` / `thoughts` field from OpenRouter response:
+  - [x] If the model returns a `reasoning` or `thinking` field in the delta, accumulate it separately
+  - [x] Render it in the existing thoughts accordion UI
+- [x] **2.7** Test end-to-end: type a message → see streamed response appear with markdown rendering
 
 ---
 

@@ -282,6 +282,123 @@ const Chat = {
     div.textContent = str;
     return div.innerHTML;
   },
+
+  /* ---- Streaming helpers ---- */
+
+  _pendingStream: null,
+  _streamRenderTimer: null,
+
+  /** Append a placeholder model turn for streaming */
+  appendStreamingTurn(msgId) {
+    const container = document.getElementById('chat-messages');
+    const emptyState = document.getElementById('empty-state');
+    if (emptyState) emptyState.style.display = 'none';
+    document.getElementById('disclaimer').style.display = 'flex';
+
+    const turnHtml = `
+      <div class="chat-turn" data-msg-id="${msgId}">
+        <div class="turn-role-label">Model</div>
+        <div class="turn-content">
+          <div class="streaming-content">
+            <span class="streaming-cursor"></span>
+          </div>
+        </div>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', turnHtml);
+    this.scrollToBottom();
+  },
+
+  /** Queue a streaming content update (throttled to ~80ms) */
+  updateStreamingContent(msgId, content, thoughts) {
+    this._pendingStream = { msgId, content, thoughts };
+    if (this._streamRenderTimer) return;
+    this._flushStreamRender();
+    this._streamRenderTimer = setTimeout(() => {
+      this._streamRenderTimer = null;
+      this._flushStreamRender();
+    }, 80);
+  },
+
+  _flushStreamRender() {
+    if (!this._pendingStream) return;
+    const { msgId, content, thoughts } = this._pendingStream;
+    this._pendingStream = null;
+
+    const turn = document.querySelector(`.chat-turn[data-msg-id="${msgId}"]`);
+    if (!turn) return;
+    const area = turn.querySelector('.streaming-content');
+    if (!area) return;
+
+    let html = '';
+    if (thoughts) {
+      html += `
+        <div class="thoughts-section expanded" onclick="Chat.toggleThoughts(this)">
+          <div class="thoughts-header">
+            <svg class="thoughts-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs><linearGradient id="think-grad-s" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#87A9FF"/>
+                <stop offset="50%" stop-color="#A7B8EE"/>
+                <stop offset="100%" stop-color="#F1DCC7"/>
+              </linearGradient></defs>
+              <path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="url(#think-grad-s)"/>
+            </svg>
+            <span class="thoughts-label">Thinking</span>
+            <span class="thoughts-summary"></span>
+            <span class="material-symbols-outlined thoughts-expand-icon">expand_more</span>
+          </div>
+          <div class="thoughts-body">
+            <div class="markdown-content">${marked.parse(thoughts)}</div>
+          </div>
+        </div>`;
+    }
+
+    if (content) {
+      html += `<div class="markdown-content">${marked.parse(content)}</div>`;
+    } else if (!thoughts) {
+      html += '<span class="streaming-cursor"></span>';
+    }
+
+    area.innerHTML = html;
+    this.scrollToBottom();
+  },
+
+  /** Show an error inside the streaming bubble */
+  showStreamingError(msgId, message) {
+    const turn = document.querySelector(`.chat-turn[data-msg-id="${msgId}"]`);
+    if (!turn) return;
+    const area = turn.querySelector('.streaming-content');
+    if (!area) return;
+    area.innerHTML = `<div class="streaming-error"><span class="material-symbols-outlined">error</span> ${this.escapeHtml(message)}</div>`;
+    this.scrollToBottom();
+  },
+
+  /** Toggle Run/Stop button and disable textarea while generating */
+  setGeneratingUI(isGenerating) {
+    const textarea = document.getElementById('prompt-input');
+    const runBtn = document.getElementById('btn-run');
+    textarea.disabled = isGenerating;
+    if (isGenerating) {
+      runBtn.innerHTML = '<span class="run-btn-label">Stop</span><span class="material-symbols-outlined">stop</span>';
+      runBtn.classList.add('stop-btn');
+    } else {
+      runBtn.innerHTML = '<span class="run-btn-label">Run</span><span class="material-symbols-outlined">keyboard_return</span>';
+      runBtn.classList.remove('stop-btn');
+    }
+  },
+
+  /** Clean up streaming render state */
+  finalizeStreaming() {
+    this._pendingStream = null;
+    if (this._streamRenderTimer) {
+      clearTimeout(this._streamRenderTimer);
+      this._streamRenderTimer = null;
+    }
+  },
+
+  scrollToBottom() {
+    const container = document.getElementById('chat-messages');
+    container.scrollTop = container.scrollHeight;
+  },
 };
 
 /* ============================================================
@@ -309,28 +426,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
   runBtn.addEventListener('click', submitMessage);
 
-  function submitMessage() {
+  async function submitMessage() {
+    // If currently generating, treat as Stop
+    if (App.isGenerating) {
+      App.stopGeneration();
+      return;
+    }
+
     const content = textarea.value.trim();
     if (!content) return;
 
-    // If no chat is open, create one first
-    if (!App.currentChat) {
-      App.createChat().then(() => {
-        App.addUserMessage(content);
-        // Auto-title from first message
-        const title = content.substring(0, 50) + (content.length > 50 ? '...' : '');
-        App.renameChat(App.currentChat.id, title);
-      });
-    } else {
-      App.addUserMessage(content);
-      // Auto-title if still "Untitled chat"
-      if (App.currentChat.title === 'Untitled chat' && App.currentChat.messages.length === 1) {
-        const title = content.substring(0, 50) + (content.length > 50 ? '...' : '');
-        App.renameChat(App.currentChat.id, title);
-      }
-    }
-
+    // Clear input immediately for responsiveness
     textarea.value = '';
     textarea.style.height = 'auto';
+
+    // Create chat if needed
+    if (!App.currentChat) {
+      await App.createChat();
+    }
+
+    // Add user message
+    await App.addUserMessage(content);
+
+    // Auto-title from first user message
+    if (App.currentChat.title === 'Untitled chat') {
+      const title = content.substring(0, 50) + (content.length > 50 ? '...' : '');
+      App.renameChat(App.currentChat.id, title);
+    }
+
+    // Generate LLM response
+    App.generateResponse();
   }
 });

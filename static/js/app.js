@@ -6,6 +6,8 @@ const App = {
   currentChatId: null,
   chats: [],          // [{id, title, updated_at}]
   currentChat: null,  // full chat object when loaded
+  isGenerating: false,
+  abortController: null,
 
   /** API helpers */
   async api(method, path, body) {
@@ -117,6 +119,112 @@ const App = {
       await this.saveChat();
       Chat.render();
       this.updateTokenCount();
+    }
+  },
+
+  /** Stream an LLM response for the current chat */
+  async generateResponse() {
+    if (!this.currentChat || this.isGenerating) return;
+
+    const chatId = this.currentChat.id;
+    this.isGenerating = true;
+    this.abortController = new AbortController();
+    Chat.setGeneratingUI(true);
+
+    // Placeholder model message
+    const msgId = crypto.randomUUID();
+    this.currentChat.messages.push({
+      id: msgId, role: 'model', content: '', thoughts: '',
+    });
+    Chat.appendStreamingTurn(msgId);
+
+    let accContent = '';
+    let accThoughts = '';
+    let hadError = false;
+
+    try {
+      const res = await fetch(`/api/chats/${chatId}/generate`, {
+        method: 'POST',
+        signal: this.abortController.signal,
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentEvent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+            continue;
+          }
+          if (line === '') { currentEvent = ''; continue; }
+          if (!line.startsWith('data: ')) continue;
+
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(payload);
+
+            if (currentEvent === 'error' || data.error) {
+              hadError = true;
+              Chat.showStreamingError(msgId, data.error || 'Unknown error');
+              return;
+            }
+
+            const choices = data.choices || [];
+            if (!choices.length) continue;
+            const delta = choices[0].delta || {};
+
+            const text = typeof delta.content === 'string' ? delta.content : '';
+            if (text) accContent += text;
+
+            const reasoning = delta.reasoning || delta.reasoning_content || delta.thinking || '';
+            if (typeof reasoning === 'string' && reasoning) accThoughts += reasoning;
+
+            if (text || reasoning) {
+              Chat.updateStreamingContent(msgId, accContent, accThoughts);
+            }
+          } catch (e) { /* skip invalid JSON */ }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        hadError = true;
+        Chat.showStreamingError(msgId, err.message);
+      }
+    } finally {
+      this.isGenerating = false;
+      this.abortController = null;
+      Chat.setGeneratingUI(false);
+      Chat.finalizeStreaming();
+
+      if (this.currentChatId === chatId) {
+        if (hadError) {
+          this.currentChat.messages = this.currentChat.messages.filter(m => m.id !== msgId);
+        } else {
+          try {
+            this.currentChat = await this.api('GET', `/api/chats/${chatId}`);
+          } catch (e) { /* ignore */ }
+          Chat.render();
+        }
+        this.updateTokenCount();
+      }
+    }
+  },
+
+  stopGeneration() {
+    if (this.abortController) {
+      this.abortController.abort();
     }
   },
 };

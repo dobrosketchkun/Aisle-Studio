@@ -1301,6 +1301,50 @@ ul { list-style: none; }
 }
 
 /* ============================================================
+   STREAMING
+   ============================================================ */
+.streaming-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 18px;
+  background: var(--text-secondary);
+  border-radius: 1px;
+  vertical-align: text-bottom;
+  animation: cursor-blink 1s steps(2) infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f87171;
+  font-size: 14px;
+  padding: 8px 0;
+}
+
+.streaming-error .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.run-btn.stop-btn {
+  background: #dc2626;
+}
+
+.run-btn.stop-btn:hover {
+  background: #b91c1c;
+}
+
+.prompt-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
    RESPONSIVE (hide panels on narrow screens)
    ============================================================ */
 @media (max-width: 900px) {
