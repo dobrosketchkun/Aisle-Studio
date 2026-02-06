@@ -164,68 +164,8 @@
 
         <div class="settings-divider"></div>
 
-        <!-- Temperature -->
-        <div class="settings-item">
-          <label class="settings-label">Temperature</label>
-          <div class="slider-row">
-            <input type="range" id="temperature-slider" class="settings-slider" min="0" max="2" step="0.05" value="1">
-            <input type="number" id="temperature-value" class="slider-value-input" min="0" max="2" step="0.05" value="1">
-          </div>
-        </div>
-
-        <!-- Media resolution -->
-        <div class="settings-item">
-          <label class="settings-label">Media resolution</label>
-          <select id="media-resolution" class="settings-select">
-            <option value="Default">Default</option>
-            <option value="Low">Low</option>
-            <option value="High">High</option>
-          </select>
-        </div>
-
-        <!-- Thinking level -->
-        <div class="settings-item">
-          <label class="settings-label">Thinking level</label>
-          <select id="thinking-level" class="settings-select">
-            <option value="None">None</option>
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High" selected>High</option>
-          </select>
-        </div>
-
-        <div class="settings-divider"></div>
-
-        <!-- Tools group -->
-        <div class="settings-group">
-          <button class="settings-group-header" id="tools-group-toggle">
-            <span class="material-symbols-outlined expand-icon">expand_more</span>
-            <span class="group-title">Tools</span>
-          </button>
-          <div class="settings-group-body" id="tools-group-body">
-            <div class="settings-toggle-item">
-              <span>Structured outputs</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-structured">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="settings-toggle-item">
-              <span>Code execution</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-code-exec">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="settings-toggle-item">
-              <span>URL context</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-url-context">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
+        <!-- Dynamic settings rendered by settings.js -->
+        <div id="dynamic-settings"></div>
       </div>
     </aside>
   </div>
@@ -250,9 +190,9 @@
     </button>
   </div>
 
-  <script src="/static/js/app.js"></script>
-  <script src="/static/js/sidebar.js"></script>
-  <script src="/static/js/chat.js"></script>
-  <script src="/static/js/settings.js"></script>
+  <script src="/static/js/app.js?v=2"></script>
+  <script src="/static/js/sidebar.js?v=2"></script>
+  <script src="/static/js/chat.js?v=2"></script>
+  <script src="/static/js/settings.js?v=2"></script>
 </body>
 </html>

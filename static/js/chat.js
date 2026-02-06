@@ -54,8 +54,8 @@ const Chat = {
       return;
     }
 
-    emptyState.style.display = 'none';
-    disclaimer.style.display = 'flex';
+    if (emptyState) emptyState.style.display = 'none';
+    if (disclaimer) disclaimer.style.display = 'flex';
 
     // Build message HTML
     let html = '';

@@ -74,30 +74,30 @@ Currently `submitMessage()` in `chat.js` saves the user message but never calls 
 
 The right panel currently has hardcoded controls. Replace with schema-driven rendering.
 
-- [ ] **3.1** Create `static/providers.json` with provider definitions:
-  - [ ] `openrouter` entry with models list (start with `google/gemini-3-pro-preview`) and params schema
-  - [ ] Stub entries for `anthropic`, `openai`, `google` (models + params) — won't be wired yet, just schema
-- [ ] **3.2** In `app.js`, load `providers.json` at startup and store as `App.providers`
-- [ ] **3.3** Rewrite `settings.js` — `Settings.renderDynamicControls()`:
-  - [ ] Clear the settings panel body (below system instructions card)
-  - [ ] Read current provider from `App.currentChat.settings.provider`
-  - [ ] Look up provider schema from `App.providers`
-  - [ ] For each param in `provider.params`, render the appropriate control:
-    - [ ] `slider` → range input + number input (synced), with min/max/step/default
-    - [ ] `number` → number input with min/max
-    - [ ] `select` → dropdown with options list
-    - [ ] `toggle` → on/off switch
-    - [ ] `text` → text input
-  - [ ] Bind each control to auto-save into `App.currentChat.settings.params[key]`
-  - [ ] On provider change, reset params to the new provider's defaults
-- [ ] **3.4** Remove hardcoded temperature/media-resolution/thinking-level HTML from `index.html`
-  - [ ] Replace with an empty `<div id="dynamic-settings"></div>` container
-- [ ] **3.5** Remove the hardcoded settings event bindings from `settings.js` (slider sync, dropdowns, toggles)
-- [ ] **3.6** Update `Settings.loadFromChat()` to call `renderDynamicControls()` instead of setting individual inputs
-- [ ] **3.7** Update `Settings.saveToChat()` to read values from dynamic controls
-- [ ] **3.8** Update model selector card to show current provider name + model name from schema
-- [ ] **3.9** Render the Tools group dynamically too — only show tools the provider supports (from schema)
-- [ ] **3.10** Test: switch providers → controls change, values persist in chat JSON
+- [x] **3.1** Create `static/providers.json` with provider definitions:
+  - [x] `openrouter` entry with models list (start with `google/gemini-3-pro-preview`) and params schema
+  - [x] Stub entries for `anthropic`, `openai`, `google` (models + params) — won't be wired yet, just schema
+- [x] **3.2** In `app.js`, load `providers.json` at startup and store as `App.providers`
+- [x] **3.3** Rewrite `settings.js` — `Settings.renderDynamicControls()`:
+  - [x] Clear the settings panel body (below system instructions card)
+  - [x] Read current provider from `App.currentChat.settings.provider`
+  - [x] Look up provider schema from `App.providers`
+  - [x] For each param in `provider.params`, render the appropriate control:
+    - [x] `slider` → range input + number input (synced), with min/max/step/default
+    - [x] `number` → number input with min/max
+    - [x] `select` → dropdown with options list
+    - [x] `toggle` → on/off switch
+    - [x] `text` → text input
+  - [x] Bind each control to auto-save into `App.currentChat.settings.params[key]`
+  - [x] On provider change, reset params to the new provider's defaults
+- [x] **3.4** Remove hardcoded temperature/media-resolution/thinking-level HTML from `index.html`
+  - [x] Replace with an empty `<div id="dynamic-settings"></div>` container
+- [x] **3.5** Remove the hardcoded settings event bindings from `settings.js` (slider sync, dropdowns, toggles)
+- [x] **3.6** Update `Settings.loadFromChat()` to call `renderDynamicControls()` instead of setting individual inputs
+- [x] **3.7** Update `Settings.saveToChat()` to read values from dynamic controls
+- [x] **3.8** Update model selector card to show current provider name + model name from schema
+- [x] **3.9** Render the Tools group dynamically too — only show tools the provider supports (from schema)
+- [x] **3.10** Test: switch providers → controls change, values persist in chat JSON
 
 ---
 
@@ -105,19 +105,19 @@ The right panel currently has hardcoded controls. Replace with schema-driven ren
 
 The model selector card in the right panel should open a picker modal.
 
-- [ ] **4.1** Create `Settings.showModelPickerModal()`:
-  - [ ] Modal with provider tabs/dropdown at top
-  - [ ] Model list for selected provider (from `providers.json`)
-  - [ ] Each model shows: name, ID, description
-  - [ ] Click a model → updates `settings.provider` + `settings.model`, closes modal
-- [ ] **4.2** Wire `#model-selector` card click to open the modal
-- [ ] **4.3** On model selection:
-  - [ ] Update chat settings
-  - [ ] Re-render the dynamic settings panel (new provider may have different params)
-  - [ ] Update the model selector card display
-  - [ ] Auto-save chat
-- [ ] **4.4** Style the modal to match the dark theme (same style as system instructions modal)
-- [ ] **4.5** Test: open modal → pick different model → settings panel updates → chat saves
+- [x] **4.1** Create `Settings.showModelPickerModal()`:
+  - [x] Modal with provider tabs/dropdown at top
+  - [x] Model list for selected provider (from `providers.json`)
+  - [x] Each model shows: name, ID, description
+  - [x] Click a model → updates `settings.provider` + `settings.model`, closes modal
+- [x] **4.2** Wire `#model-selector` card click to open the modal
+- [x] **4.3** On model selection:
+  - [x] Update chat settings
+  - [x] Re-render the dynamic settings panel (new provider may have different params)
+  - [x] Update the model selector card display
+  - [x] Auto-save chat
+- [x] **4.4** Style the modal to match the dark theme (same style as system instructions modal)
+- [x] **4.5** Test: open modal → pick different model → settings panel updates → chat saves
 
 ---
 
@@ -138,6 +138,15 @@ The model selector card in the right panel should open a picker modal.
 - [ ] **5b.4** Add fallback: if mermaid parse fails, show as regular code block with small error note
 - [ ] **5b.5** Add CSS for `.mermaid-container` (border, padding, same style as code blocks)
 - [ ] **5b.6** Test: send a message asking the model to generate a mermaid diagram
+
+### 5c: LaTeX math rendering
+- [ ] **5c.1** Add KaTeX CSS + JS CDN to `index.html`
+- [ ] **5c.2** Add a marked extension (or post-process) to detect LaTeX delimiters:
+  - [ ] `$$...$$` and `\[...\]` for display math (block)
+  - [ ] `$...$` and `\(...\)` for inline math
+- [ ] **5c.3** Render detected math with `katex.renderToString()`
+- [ ] **5c.4** Handle render errors gracefully (show raw LaTeX on failure)
+- [ ] **5c.5** Test: send a message asking the model for equations
 
 ---
 

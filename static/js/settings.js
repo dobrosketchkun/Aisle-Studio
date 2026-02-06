@@ -1,37 +1,304 @@
 /* ============================================================
-   Settings Panel – Right Side Controls
+   Settings Panel – Dynamic Schema-Driven Controls
    ============================================================ */
 
 const Settings = {
   /** Load settings from current chat into the UI */
   loadFromChat() {
     if (!App.currentChat) return;
-    const s = App.currentChat.settings;
-
-    document.getElementById('temperature-slider').value = s.temperature;
-    document.getElementById('temperature-value').value = s.temperature;
-    document.getElementById('media-resolution').value = s.media_resolution || 'Default';
-    document.getElementById('thinking-level').value = s.thinking_level || 'High';
-    document.getElementById('toggle-structured').checked = s.structured_output || false;
-    document.getElementById('toggle-code-exec').checked = s.code_execution || false;
-    document.getElementById('toggle-url-context').checked = s.url_context || false;
-
-    // Model card
-    document.querySelector('#model-selector .settings-card-title').textContent = s.model || 'gemini-3-pro-preview';
+    this.updateModelCard();
+    this.renderDynamicControls();
   },
 
-  /** Save current UI settings back to the chat */
-  saveToChat() {
+  /** Update the model selector card with current provider + model info */
+  updateModelCard() {
+    const s = App.currentChat.settings;
+    const provider = App.providers[s.provider];
+    const model = provider?.models.find(m => m.id === s.model);
+
+    const titleEl = document.querySelector('#model-selector .settings-card-title');
+    const subtitleEl = document.querySelector('#model-selector .settings-card-subtitle');
+    const descEl = document.querySelector('#model-selector .settings-card-desc');
+
+    titleEl.textContent = model?.name || s.model;
+    subtitleEl.textContent = s.model;
+    descEl.textContent = model?.description || '';
+  },
+
+  /** Render all parameter controls from provider schema */
+  renderDynamicControls() {
+    const container = document.getElementById('dynamic-settings');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const s = App.currentChat.settings;
+    const providerSchema = App.providers[s.provider];
+    if (!providerSchema) return;
+
+    const params = s.params || {};
+
+    // Parameter controls
+    for (const param of providerSchema.params || []) {
+      const value = params[param.key] !== undefined ? params[param.key] : param.default;
+      container.appendChild(this._createControl(param, value));
+    }
+
+    // Tools group
+    const tools = providerSchema.tools || [];
+    if (tools.length > 0) {
+      const divider = document.createElement('div');
+      divider.className = 'settings-divider';
+      container.appendChild(divider);
+      container.appendChild(this._createToolsGroup(tools, params));
+    }
+  },
+
+  /** Create a single parameter control element */
+  _createControl(param, value) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'settings-item';
+    wrapper.dataset.paramKey = param.key;
+
+    switch (param.type) {
+      case 'slider': {
+        wrapper.innerHTML = `
+          <label class="settings-label">${param.label}</label>
+          <div class="slider-row">
+            <input type="range" class="settings-slider" min="${param.min}" max="${param.max}" step="${param.step}" value="${value}">
+            <input type="number" class="slider-value-input" min="${param.min}" max="${param.max}" step="${param.step}" value="${value}">
+          </div>`;
+
+        const slider = wrapper.querySelector('input[type="range"]');
+        const numInput = wrapper.querySelector('input[type="number"]');
+
+        slider.addEventListener('input', () => {
+          numInput.value = slider.value;
+          this._saveParam(param.key, parseFloat(slider.value));
+        });
+
+        numInput.addEventListener('change', () => {
+          let v = parseFloat(numInput.value);
+          if (isNaN(v)) v = param.default;
+          v = Math.max(param.min, Math.min(param.max, v));
+          numInput.value = v;
+          slider.value = v;
+          this._saveParam(param.key, v);
+        });
+        break;
+      }
+
+      case 'number': {
+        wrapper.innerHTML = `
+          <label class="settings-label">${param.label}</label>
+          <input type="number" class="settings-number-input" min="${param.min}" max="${param.max}" value="${value}">`;
+
+        wrapper.querySelector('input').addEventListener('change', (e) => {
+          let v = parseFloat(e.target.value);
+          if (isNaN(v)) v = param.default;
+          v = Math.max(param.min, Math.min(param.max, v));
+          e.target.value = v;
+          this._saveParam(param.key, v);
+        });
+        break;
+      }
+
+      case 'select': {
+        const options = (param.options || []).map(o => {
+          const val = o.value || o;
+          const label = o.label || o;
+          return `<option value="${val}"${val === value ? ' selected' : ''}>${label}</option>`;
+        }).join('');
+        wrapper.innerHTML = `
+          <label class="settings-label">${param.label}</label>
+          <select class="settings-select">${options}</select>`;
+
+        wrapper.querySelector('select').addEventListener('change', (e) => {
+          this._saveParam(param.key, e.target.value);
+        });
+        break;
+      }
+
+      case 'toggle': {
+        wrapper.className = 'settings-toggle-item';
+        wrapper.dataset.paramKey = param.key;
+        wrapper.innerHTML = `
+          <span>${param.label}</span>
+          <label class="toggle-switch">
+            <input type="checkbox" ${value ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>`;
+
+        wrapper.querySelector('input').addEventListener('change', (e) => {
+          this._saveParam(param.key, e.target.checked);
+        });
+        break;
+      }
+
+      case 'text': {
+        wrapper.innerHTML = `
+          <label class="settings-label">${param.label}</label>
+          <input type="text" class="settings-text-input" value="${value || ''}">`;
+
+        wrapper.querySelector('input').addEventListener('change', (e) => {
+          this._saveParam(param.key, e.target.value);
+        });
+        break;
+      }
+    }
+
+    return wrapper;
+  },
+
+  /** Build the collapsible Tools group */
+  _createToolsGroup(tools, params) {
+    const group = document.createElement('div');
+    group.className = 'settings-group';
+
+    const header = document.createElement('button');
+    header.className = 'settings-group-header';
+    header.innerHTML = `
+      <span class="material-symbols-outlined expand-icon">expand_more</span>
+      <span class="group-title">Tools</span>`;
+
+    const body = document.createElement('div');
+    body.className = 'settings-group-body';
+
+    for (const tool of tools) {
+      const checked = params[tool.key] || false;
+      const item = document.createElement('div');
+      item.className = 'settings-toggle-item';
+      item.dataset.paramKey = tool.key;
+      item.innerHTML = `
+        <span>${tool.label}</span>
+        <label class="toggle-switch">
+          <input type="checkbox" ${checked ? 'checked' : ''}>
+          <span class="toggle-slider"></span>
+        </label>`;
+
+      item.querySelector('input').addEventListener('change', (e) => {
+        this._saveParam(tool.key, e.target.checked);
+      });
+
+      body.appendChild(item);
+    }
+
+    header.addEventListener('click', () => {
+      header.classList.toggle('collapsed');
+      body.classList.toggle('collapsed');
+    });
+
+    group.appendChild(header);
+    group.appendChild(body);
+    return group;
+  },
+
+  /** Save a single param value and persist */
+  _saveParam(key, value) {
     if (!App.currentChat) return;
-    App.currentChat.settings = {
-      ...App.currentChat.settings,
-      temperature: parseFloat(document.getElementById('temperature-slider').value),
-      media_resolution: document.getElementById('media-resolution').value,
-      thinking_level: document.getElementById('thinking-level').value,
-      structured_output: document.getElementById('toggle-structured').checked,
-      code_execution: document.getElementById('toggle-code-exec').checked,
-      url_context: document.getElementById('toggle-url-context').checked,
+    if (!App.currentChat.settings.params) App.currentChat.settings.params = {};
+    App.currentChat.settings.params[key] = value;
+    App.saveChat();
+  },
+
+  /** Kept for backward compatibility — dynamic controls auto-save via _saveParam */
+  saveToChat() {},
+
+  /** Show model picker modal */
+  showModelPickerModal() {
+    if (!App.currentChat) return;
+    const s = App.currentChat.settings;
+    const providerKeys = Object.keys(App.providers);
+    if (!providerKeys.length) return;
+
+    let activeProvider = s.provider || providerKeys[0];
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal model-picker-modal">
+        <div class="modal-header">
+          <h3>Select a model</h3>
+          <button class="icon-btn icon-btn-sm modal-close-btn">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="model-picker-tabs"></div>
+        <div class="model-picker-list"></div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    const tabsContainer = overlay.querySelector('.model-picker-tabs');
+    const listContainer = overlay.querySelector('.model-picker-list');
+
+    const renderTabs = () => {
+      tabsContainer.innerHTML = providerKeys.map(key => {
+        const p = App.providers[key];
+        return `<button class="model-picker-tab${key === activeProvider ? ' active' : ''}" data-provider="${key}">${p.name}</button>`;
+      }).join('');
+
+      tabsContainer.querySelectorAll('.model-picker-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          activeProvider = tab.dataset.provider;
+          renderTabs();
+          renderModels();
+        });
+      });
     };
+
+    const renderModels = () => {
+      const provider = App.providers[activeProvider];
+      if (!provider) { listContainer.innerHTML = ''; return; }
+
+      listContainer.innerHTML = provider.models.map(m => {
+        const isActive = s.provider === activeProvider && s.model === m.id;
+        return `
+          <button class="model-picker-item${isActive ? ' active' : ''}" data-model-id="${m.id}">
+            <div class="model-picker-item-name">${m.name}</div>
+            <div class="model-picker-item-id">${m.id}</div>
+            <div class="model-picker-item-desc">${m.description || ''}</div>
+          </button>`;
+      }).join('');
+
+      listContainer.querySelectorAll('.model-picker-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const modelId = item.dataset.modelId;
+          this._selectModel(activeProvider, modelId);
+          overlay.remove();
+        });
+      });
+    };
+
+    renderTabs();
+    renderModels();
+
+    overlay.querySelector('.modal-close-btn').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  },
+
+  /** Apply model selection: update settings, re-render panel, save */
+  _selectModel(providerKey, modelId) {
+    if (!App.currentChat) return;
+    const oldProvider = App.currentChat.settings.provider;
+    App.currentChat.settings.provider = providerKey;
+    App.currentChat.settings.model = modelId;
+
+    // Reset params to new provider defaults when switching providers
+    if (providerKey !== oldProvider) {
+      const schema = App.providers[providerKey];
+      if (schema) {
+        const defaults = {};
+        for (const p of schema.params || []) {
+          defaults[p.key] = p.default;
+        }
+        App.currentChat.settings.params = defaults;
+      }
+    }
+
+    this.updateModelCard();
+    this.renderDynamicControls();
     App.saveChat();
   },
 
@@ -71,7 +338,6 @@ const Settings = {
       overlay.remove();
     });
 
-    // Close on backdrop click
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) overlay.remove();
     });
@@ -82,39 +348,9 @@ const Settings = {
    Event Bindings
    ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
-  // Temperature slider ↔ input sync
-  const slider = document.getElementById('temperature-slider');
-  const valInput = document.getElementById('temperature-value');
-
-  slider.addEventListener('input', () => {
-    valInput.value = slider.value;
-    Settings.saveToChat();
-  });
-
-  valInput.addEventListener('change', () => {
-    let v = parseFloat(valInput.value);
-    if (isNaN(v)) v = 1;
-    v = Math.max(0, Math.min(2, v));
-    valInput.value = v;
-    slider.value = v;
-    Settings.saveToChat();
-  });
-
-  // Dropdowns
-  document.getElementById('media-resolution').addEventListener('change', () => Settings.saveToChat());
-  document.getElementById('thinking-level').addEventListener('change', () => Settings.saveToChat());
-
-  // Toggles
-  document.getElementById('toggle-structured').addEventListener('change', () => Settings.saveToChat());
-  document.getElementById('toggle-code-exec').addEventListener('change', () => Settings.saveToChat());
-  document.getElementById('toggle-url-context').addEventListener('change', () => Settings.saveToChat());
-
-  // Tools group collapse
-  const toolsToggle = document.getElementById('tools-group-toggle');
-  const toolsBody = document.getElementById('tools-group-body');
-  toolsToggle.addEventListener('click', () => {
-    toolsToggle.classList.toggle('collapsed');
-    toolsBody.classList.toggle('collapsed');
+  // Model selector card → picker modal
+  document.getElementById('model-selector').addEventListener('click', () => {
+    Settings.showModelPickerModal();
   });
 
   // System instructions card → modal

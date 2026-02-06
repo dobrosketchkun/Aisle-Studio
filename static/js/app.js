@@ -6,6 +6,7 @@ const App = {
   currentChatId: null,
   chats: [],          // [{id, title, updated_at}]
   currentChat: null,  // full chat object when loaded
+  providers: {},       // loaded from providers.json
   isGenerating: false,
   abortController: null,
 
@@ -292,6 +293,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Close any sidebar context menu
     document.querySelectorAll('.sidebar-context-menu').forEach(m => m.remove());
   });
+
+  // Load provider config
+  try {
+    App.providers = await (await fetch('/static/providers.json')).json();
+  } catch (e) {
+    console.error('Failed to load providers.json', e);
+  }
 
   // Load chats
   await App.loadChatList();
