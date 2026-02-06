@@ -207,6 +207,21 @@ const Settings = {
     App.saveChat();
   },
 
+  /** Reset all params to provider defaults */
+  resetToDefaults() {
+    if (!App.currentChat) return;
+    const providerKey = App.currentChat.settings.provider;
+    const schema = App.providers[providerKey];
+    if (!schema) return;
+    const defaults = {};
+    for (const p of schema.params || []) {
+      defaults[p.key] = p.default;
+    }
+    App.currentChat.settings.params = defaults;
+    this.renderDynamicControls();
+    App.saveChat();
+  },
+
   /** Kept for backward compatibility — dynamic controls auto-save via _saveParam */
   saveToChat() {},
 
@@ -370,6 +385,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // System instructions card → modal
   document.getElementById('system-instructions-card').addEventListener('click', () => {
     Settings.showSystemInstructionsModal();
+  });
+
+  // Reset settings button
+  document.getElementById('btn-reset-settings').addEventListener('click', () => {
+    Settings.resetToDefaults();
   });
 
   // Settings button in sidebar

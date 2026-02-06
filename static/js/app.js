@@ -82,6 +82,9 @@ const App = {
     const el = document.getElementById('token-count');
     if (!this.currentChat) { el.textContent = ''; return; }
     let tokens = 0;
+    // Include system instructions in token count
+    const sysInstr = this.currentChat.settings?.system_instructions || '';
+    if (sysInstr) tokens += Math.round(sysInstr.length / 4);
     for (const m of this.currentChat.messages) {
       // Text tokens (~4 chars per token)
       const text = (m.content || '') + (m.thoughts || '');

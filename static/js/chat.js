@@ -196,10 +196,10 @@ const Chat = {
           ${filesHtml}
           ${contentHtml}
           <div class="turn-actions">
-            ${isUser ? `<button class="turn-action-btn" onclick="Chat.startEdit('${msg.id}')" title="Edit">
+            <button class="turn-action-btn" onclick="Chat.startEdit('${msg.id}')" title="Edit">
               <span class="material-symbols-outlined">edit</span>
-            </button>` : ''}
-            <button class="turn-action-btn" title="Rerun this turn">
+            </button>
+            <button class="turn-action-btn" onclick="Chat.rerunFrom('${msg.id}')" title="Rerun from here">
               ${sparkleSvg}
             </button>
             <button class="turn-action-btn" onclick="Chat.showTurnMenu(event, '${msg.id}')" title="More options">
@@ -328,7 +328,30 @@ const Chat = {
     }
   },
 
-  /** Start editing a user message */
+  /** Rerun: delete messages from this point and regenerate */
+  rerunFrom(msgId) {
+    if (!App.currentChat || App.isGenerating) return;
+    const messages = App.currentChat.messages;
+    const idx = messages.findIndex(m => m.id === msgId);
+    if (idx === -1) return;
+
+    const msg = messages[idx];
+    if (msg.role === 'model' || msg.role === 'assistant') {
+      // Delete this model message and everything after
+      App.currentChat.messages = messages.slice(0, idx);
+    } else {
+      // User message: delete everything after it
+      App.currentChat.messages = messages.slice(0, idx + 1);
+    }
+
+    App.saveChat().then(() => {
+      Chat.render();
+      App.updateTokenCount();
+      App.generateResponse();
+    });
+  },
+
+  /** Start editing a message */
   startEdit(msgId) {
     const turn = document.querySelector(`.chat-turn[data-msg-id="${msgId}"]`);
     if (!turn) return;
@@ -965,11 +988,15 @@ document.addEventListener('DOMContentLoaded', () => {
     textarea.style.height = Math.min(textarea.scrollHeight, 302) + 'px';
   });
 
-  // Submit on Enter (Shift+Enter for newline)
+  // Submit on Enter (Shift+Enter for newline, Alt+Enter to append without generating)
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       submitMessage();
+    }
+    if (e.key === 'Enter' && e.altKey) {
+      e.preventDefault();
+      appendMessage();
     }
   });
 
@@ -1042,5 +1069,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Generate LLM response
     App.generateResponse();
+  }
+
+  async function appendMessage() {
+    if (App.isGenerating) return;
+    const content = textarea.value.trim();
+    const files = [...App.pendingFiles];
+    if (!content && !files.length) return;
+
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    App.pendingFiles = [];
+    Chat.renderPendingFiles();
+
+    if (!App.currentChat) {
+      await App.createChat();
+    }
+
+    await App.addUserMessage(content, files);
+
+    if (App.currentChat.title === 'Untitled chat' && content) {
+      const title = content.substring(0, 50) + (content.length > 50 ? '...' : '');
+      App.renameChat(App.currentChat.id, title);
+    }
+    // No generation — just append the message
   }
 });
