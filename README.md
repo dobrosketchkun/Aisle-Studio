@@ -2,6 +2,8 @@
 
 A local chat UI that mimics AI Studio style, backed by FastAPI and OpenRouter.
 
+![Aisle Studio screenshot](misc/screenshot_1.jpg)
+
 ## What It Does
 
 - Multi-chat workspace with local JSON persistence
@@ -37,3 +39,6 @@ Use the key button in the prompt bar, or set env vars in `.env` (for example `OP
 - Styles: `static/css/style.css`
 - Model registry: `static/providers.json`
 
+## Disclaimer
+
+Built for personal use first. It is intentionally simple, and there are probably rough edges and bugs.
