@@ -2118,6 +2118,31 @@ ul {
   font-size: 18px;
 }
 
+/* ============================================================
+   IMAGE PREP MODAL (JPEG / resize to fit)
+   ============================================================ */
+.image-prep-modal {
+  width: 520px;
+}
+
+.image-prep-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.image-prep-body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.image-prep-actions {
+  justify-content: flex-end;
+}
+
 /* Key indicator on prompt button */
 #btn-api-key.key-configured {
   color: var(--accent-green);

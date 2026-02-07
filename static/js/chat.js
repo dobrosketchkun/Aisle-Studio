@@ -594,6 +594,278 @@ const Chat = {
 
   /* ---- File upload & preview ---- */
 
+  _getCurrentImageSizeLimit() {
+    const s = App.currentChat?.settings;
+    const modelId = s?.model || '';
+    // Keep this in sync with backend validation for Anthropic models.
+    if (modelId.startsWith('anthropic/')) {
+      return 5 * 1024 * 1024; // 5MB
+    }
+    return null;
+  },
+
+  _jpegName(originalName) {
+    if (!originalName) return 'image.jpg';
+    const idx = originalName.lastIndexOf('.');
+    if (idx <= 0) return `${originalName}.jpg`;
+    return `${originalName.slice(0, idx)}.jpg`;
+  },
+
+  _loadImageElement(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to decode image'));
+      };
+      img.src = url;
+    });
+  },
+
+  _renderJpegFromImage(img, originalName, scale, quality) {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context unavailable'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('JPEG encoding failed'));
+          return;
+        }
+        resolve(new File([blob], this._jpegName(originalName), { type: 'image/jpeg' }));
+      }, 'image/jpeg', quality);
+    });
+  },
+
+  async _convertImageToJpeg(file) {
+    const img = await this._loadImageElement(file);
+    return this._renderJpegFromImage(img, file.name, 1, 0.9);
+  },
+
+  async _findLargestJpegUnderLimit(file, maxBytes) {
+    const img = await this._loadImageElement(file);
+    const qualities = [0.9, 0.86, 0.82];
+    let bestOverall = null;
+
+    // Binary search scale; always render from the original image.
+    for (const q of qualities) {
+      let low = 0.1;
+      let high = 1.0;
+      let best = null;
+      for (let i = 0; i < 8; i++) {
+        const mid = (low + high) / 2;
+        const candidate = await this._renderJpegFromImage(img, file.name, mid, q);
+        if (candidate.size <= maxBytes) {
+          best = candidate;
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      if (best && (!bestOverall || best.size > bestOverall.size)) {
+        bestOverall = best;
+      }
+      // If we already got close enough, stop early.
+      if (bestOverall && bestOverall.size >= maxBytes * 0.94) {
+        break;
+      }
+    }
+
+    return bestOverall;
+  },
+
+  _showImagePrepModal({ title, bodyHtml, primaryLabel, secondaryLabel, tertiaryLabel }) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal image-prep-modal">
+          <div class="modal-header">
+            <h3>${title}</h3>
+            <button class="icon-btn icon-btn-sm image-prep-close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="image-prep-body">${bodyHtml}</div>
+          </div>
+          <div class="modal-footer image-prep-actions">
+            ${tertiaryLabel ? `<button class="btn-secondary image-prep-tertiary">${tertiaryLabel}</button>` : ''}
+            ${secondaryLabel ? `<button class="btn-secondary image-prep-secondary">${secondaryLabel}</button>` : ''}
+            <button class="btn-primary image-prep-primary">${primaryLabel}</button>
+          </div>
+        </div>`;
+
+      const done = (choice) => {
+        overlay.remove();
+        resolve(choice);
+      };
+
+      overlay.querySelector('.image-prep-close')?.addEventListener('click', () => done('cancel'));
+      overlay.querySelector('.image-prep-primary')?.addEventListener('click', () => done('primary'));
+      overlay.querySelector('.image-prep-secondary')?.addEventListener('click', () => done('secondary'));
+      overlay.querySelector('.image-prep-tertiary')?.addEventListener('click', () => done('tertiary'));
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) done('cancel');
+      });
+      document.body.appendChild(overlay);
+    });
+  },
+
+  async _prepareImageForUpload(file, maxBytes, options = {}) {
+    const allowKeepOriginal = options.allowKeepOriginal !== false;
+    if (!maxBytes || file.size <= maxBytes) return file;
+
+    const current = this._formatSize(file.size);
+    const limit = this._formatSize(maxBytes);
+
+    const firstChoice = await this._showImagePrepModal({
+      title: 'Image too large for current model',
+      bodyHtml: `
+        <p><strong>${this.escapeHtml(file.name)}</strong> is <strong>${current}</strong>.</p>
+        <p>This model accepts up to <strong>${limit}</strong> per image.</p>
+        <p>Try converting to JPEG first. If still too large, you can resize from the original while preserving aspect ratio.</p>
+      `,
+      primaryLabel: 'Convert to JPEG',
+      secondaryLabel: allowKeepOriginal ? 'Keep Original' : null,
+      tertiaryLabel: 'Skip',
+    });
+
+    if (firstChoice === 'tertiary' || firstChoice === 'cancel') return null;
+    if (firstChoice === 'secondary') return file;
+
+    let jpegFile;
+    try {
+      jpegFile = await this._convertImageToJpeg(file);
+    } catch (e) {
+      App.showToast('JPEG conversion failed');
+      return null;
+    }
+
+    if (jpegFile.size <= maxBytes) {
+      App.showToast(`Converted to JPEG (${this._formatSize(jpegFile.size)})`);
+      return jpegFile;
+    }
+
+    const secondChoice = await this._showImagePrepModal({
+      title: 'Still too large after JPEG conversion',
+      bodyHtml: `
+        <p>JPEG result is <strong>${this._formatSize(jpegFile.size)}</strong>, still above <strong>${limit}</strong>.</p>
+        <p>Auto-resize from the original image and keep the largest size that fits?</p>
+      `,
+      primaryLabel: 'Auto-resize to fit',
+      secondaryLabel: 'Skip',
+    });
+
+    if (secondChoice !== 'primary') return null;
+
+    try {
+      const resized = await this._findLargestJpegUnderLimit(file, maxBytes);
+      if (!resized) {
+        App.showToast('Could not compress image enough');
+        return null;
+      }
+      App.showToast(`Resized JPEG (${this._formatSize(resized.size)})`);
+      return resized;
+    } catch (e) {
+      App.showToast('Image resize failed');
+      return null;
+    }
+  },
+
+  async _uploadPreparedFile(chatId, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`/api/chats/${chatId}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    return res.json();
+  },
+
+  async preflightImagesForGenerate() {
+    if (!App.currentChat) return true;
+
+    const maxBytes = this._getCurrentImageSizeLimit();
+    if (!maxBytes) return true;
+
+    const chatId = App.currentChat.id;
+    let changed = false;
+
+    for (const msg of App.currentChat.messages || []) {
+      if (!Array.isArray(msg.files) || !msg.files.length) continue;
+
+      for (let i = 0; i < msg.files.length; i++) {
+        const f = msg.files[i];
+        const type = (f.type || '');
+        const size = Number(f.size || 0);
+        if (!type.startsWith('image/') || size <= maxBytes) continue;
+
+        const url = `/api/chats/${chatId}/files/${encodeURIComponent(f.filename)}`;
+        let sourceBlob;
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error('Failed to read original image');
+          sourceBlob = await resp.blob();
+        } catch (e) {
+          App.showToast(`Failed to load image ${f.name || f.filename}`);
+          return false;
+        }
+
+        const sourceFile = new File(
+          [sourceBlob],
+          f.name || f.filename || 'image',
+          { type: f.type || sourceBlob.type || 'image/jpeg' },
+        );
+
+        // During generation preflight, "keep original" is disabled to avoid
+        // guaranteed provider errors on the next request.
+        const prepared = await this._prepareImageForUpload(sourceFile, maxBytes, { allowKeepOriginal: false });
+        if (!prepared) {
+          App.showToast('Generation cancelled: oversized image was not fixed');
+          return false;
+        }
+
+        // If still oversized for any reason, stop before request.
+        if (prepared.size > maxBytes) {
+          App.showToast('Generation cancelled: image is still above model limit');
+          return false;
+        }
+
+        // Replace the file metadata in-message with the newly uploaded version.
+        try {
+          const meta = await this._uploadPreparedFile(chatId, prepared);
+          msg.files[i] = meta;
+          changed = true;
+        } catch (e) {
+          App.showToast('Failed to upload optimized image');
+          return false;
+        }
+      }
+    }
+
+    if (changed) {
+      await App.saveChat();
+      this.render();
+      App.updateTokenCount();
+      App.showToast('Oversized images were optimized for this model');
+    }
+
+    return true;
+  },
+
   /** Upload files to server and add to pending list */
   async uploadFiles(fileList) {
     if (!App.currentChat) {
@@ -610,6 +882,8 @@ const Chat = {
     // <input> element and may be emptied when the input value is reset.
     const files = Array.from(fileList);
     for (const file of files) {
+      let uploadFile = file;
+
       // Check media type against model capabilities
       const category = file.type.split('/')[0]; // image, video, audio, text, application
       if (['image', 'video', 'audio'].includes(category) && !caps.has(category)) {
@@ -617,8 +891,14 @@ const Chat = {
         continue;
       }
 
+      if (category === 'image') {
+        const maxImageBytes = this._getCurrentImageSizeLimit();
+        uploadFile = await this._prepareImageForUpload(file, maxImageBytes, { allowKeepOriginal: true });
+        if (!uploadFile) continue;
+      }
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', uploadFile);
 
       try {
         const res = await fetch(`/api/chats/${App.currentChat.id}/upload`, {

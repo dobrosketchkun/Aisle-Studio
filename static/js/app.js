@@ -169,6 +169,11 @@ const App = {
   async generateResponse() {
     if (!this.currentChat || this.isGenerating) return;
 
+    if (typeof Chat !== 'undefined' && Chat.preflightImagesForGenerate) {
+      const okToProceed = await Chat.preflightImagesForGenerate();
+      if (!okToProceed) return;
+    }
+
     const chatId = this.currentChat.id;
     this.isGenerating = true;
     this.abortController = new AbortController();
