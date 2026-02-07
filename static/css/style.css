@@ -51,6 +51,60 @@
   --radius-sm: 8px;
 }
 
+body.theme-light {
+  --surface: #f5f6f8;
+  --surface-container: #ffffff;
+  --surface-container-high: #f1f3f7;
+  --surface-highest: #e9edf4;
+  --surface-left-nav: #f7f8fb;
+  --surface-left-nav-border: #dde3ee;
+
+  --text: #1d2330;
+  --text-secondary: #5e6a7f;
+  --text-on-button: #ffffff;
+  --text-disabled: #a4adbc;
+  --text-link: #3f6fd8;
+
+  --outline: #c5cfdf;
+  --outline-subtle: #d7deea;
+  --outline-accent: #3f6fd8;
+
+  --btn-bg: #2f62d9;
+  --btn-bg-accent: #3a6fea;
+  --hover: #e8edf7;
+  --nav-hover: #eaf0fb;
+  --nav-active: #dde8fb;
+
+  --input-bg: rgba(56, 84, 140, 0.08);
+  --input-border: transparent;
+  --inline-code-bg: #e9eef8;
+
+  --thought-header: #e8edf7;
+  --thought-body: #f4f7fc;
+  --thought-divider: #d7deea;
+  --thought-code-bg: #e8edf7;
+
+  --accent-blue: #3f6fd8;
+  --accent-yellow: #b07a00;
+  --accent-red: #b3261e;
+  --accent-green: #1d8f47;
+  --error: #b3261e;
+}
+
+/* Ensure readable contrast for blue buttons/chips in light mode */
+body.theme-light .nav-item-new-chat,
+body.theme-light .run-btn,
+body.theme-light .btn-primary,
+body.theme-light .search-mode-btn.active,
+body.theme-light .history-mode-btn.active,
+body.theme-light .history-sort-btn.active {
+  color: #ffffff;
+}
+
+body.theme-light .toggle-switch input:checked + .toggle-slider::before {
+  background: #ffffff;
+}
+
 /* --- Reset & Base --- */
 *,
 *::before,
@@ -64,7 +118,7 @@ html,
 body {
   height: 100%;
   overflow: hidden;
-  background: #000;
+  background: var(--surface);
   color: var(--text);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -299,7 +353,13 @@ ul {
 
 .sidebar-bottom {
   border-top: 1px solid var(--surface-left-nav-border);
-  padding: 8px 0;
+  padding: 8px;
+}
+
+.nav-item-theme {
+  width: 100%;
+  margin: 0;
+  justify-content: center;
 }
 
 /* ============================================================

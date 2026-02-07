@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    App State & Core Logic
    ============================================================ */
 
@@ -10,7 +10,8 @@ const App = {
   isGenerating: false,
   abortController: null,
   pendingFiles: [],    // files uploaded but not yet sent with a message
-  keyStatus: {},       // { provider: bool } — which providers have keys configured
+  keyStatus: {},       // { provider: bool } -- which providers have keys configured
+  theme: 'dark',
 
   /** API helpers */
   async api(method, path, body) {
@@ -32,6 +33,25 @@ const App = {
       try { return JSON.stringify(err); } catch (_) { /* ignore */ }
     }
     return String(err ?? 'Unknown error');
+  },
+
+  applyTheme(theme) {
+    const normalized = theme === 'light' ? 'light' : 'dark';
+    this.theme = normalized;
+    document.body.classList.toggle('theme-light', normalized === 'light');
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.textContent = normalized === 'light' ? 'dark_mode' : 'light_mode';
+  },
+
+  initTheme() {
+    const saved = localStorage.getItem('theme');
+    this.applyTheme(saved === 'light' ? 'light' : 'dark');
+  },
+
+  toggleTheme() {
+    const next = this.theme === 'light' ? 'dark' : 'light';
+    this.applyTheme(next);
+    localStorage.setItem('theme', next);
   },
 
   async loadChatList() {
@@ -543,7 +563,7 @@ const App = {
               <span class="key-status ${hasKey ? 'key-active' : 'key-inactive'}">${hasKey ? 'Configured' : 'Not set'}</span>
             </div>
             <div class="key-field-input">
-              <input type="password" id="key-input-${key}" placeholder="${hasKey ? '••••••••••••' : 'Enter API key...'}" data-provider="${key}">
+              <input type="password" id="key-input-${key}" placeholder="${hasKey ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Enter API key...'}" data-provider="${key}">
               ${hasKey ? `<button class="key-clear-btn" data-provider="${key}" title="Clear key"><span class="material-symbols-outlined">close</span></button>` : ''}
             </div>
           </div>`;
@@ -628,6 +648,8 @@ const App = {
    Init on DOM ready
    ============================================================ */
 document.addEventListener('DOMContentLoaded', async () => {
+  App.initTheme();
+
   // Sidebar toggle
   document.getElementById('btn-sidebar-toggle').addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('collapsed');
@@ -698,6 +720,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     App.openKeyManagementModal();
   });
 
+  const themeBtn = document.getElementById('btn-theme-toggle');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', () => App.toggleTheme());
+  }
+
   // Resizable right panel
   const resizeHandle = document.getElementById('panel-resize-handle');
   const rightPanel = document.getElementById('right-panel');
@@ -753,3 +780,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await App.openChat(App.chats[0].id);
   }
 });
+
+
+
