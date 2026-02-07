@@ -27,6 +27,7 @@ const App = {
   _normalizeErrorMessage(err) {
     if (typeof err === 'string') return err;
     if (err && typeof err === 'object') {
+      if (typeof err.error === 'string') return err.error;
       if (typeof err.message === 'string') return err.message;
       try { return JSON.stringify(err); } catch (_) { /* ignore */ }
     }
@@ -225,7 +226,7 @@ const App = {
 
             if (currentEvent === 'error' || data.error) {
               hadError = true;
-              Chat.showStreamingError(msgId, this._normalizeErrorMessage(data.error));
+              Chat.showStreamingError(msgId, this._normalizeErrorMessage(data));
               return;
             }
 

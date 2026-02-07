@@ -336,9 +336,61 @@ def _extract_reasoning(delta: dict) -> str:
     return ""
 
 
-def _sse_error_event(message: str, status_code: int = 500) -> str:
-    payload = json.dumps({"error": message, "status_code": status_code}, ensure_ascii=False)
+def _sse_error_event(message: str, status_code: int = 500, error_type: str = "provider_error") -> str:
+    payload = json.dumps(
+        {"error": message, "status_code": status_code, "error_type": error_type},
+        ensure_ascii=False,
+    )
     return f"event: error\ndata: {payload}\n\n"
+
+
+def _format_stream_exception(exc: Exception) -> tuple[str, int, str]:
+    """
+    Map low-level streaming/network exceptions to user-facing messages.
+    Add new rules here as specific provider/network failures show up.
+    """
+    text = str(exc)
+    lower = text.lower()
+
+    rules = [
+        (
+            "connection_reset",
+            lambda e, t: isinstance(e, ConnectionResetError)
+            or "winerror 10054" in t
+            or "forcibly closed by the remote host" in t,
+            "Connection reset by remote host while streaming. Please retry.",
+            502,
+        ),
+        (
+            "timeout",
+            lambda e, t: isinstance(e, httpx.TimeoutException) or "timed out" in t,
+            "Provider request timed out. Please retry.",
+            504,
+        ),
+        (
+            "connection_error",
+            lambda e, t: isinstance(e, httpx.ConnectError)
+            or isinstance(e, httpx.NetworkError)
+            or "connection aborted" in t
+            or "connection error" in t
+            or "network is unreachable" in t,
+            "Network failure while calling provider. Please check connection and retry.",
+            502,
+        ),
+        (
+            "protocol_error",
+            lambda e, t: isinstance(e, httpx.RemoteProtocolError) or "protocol error" in t,
+            "Provider stream ended unexpectedly (protocol error). Please retry.",
+            502,
+        ),
+    ]
+
+    for error_type, predicate, message, status in rules:
+        if predicate(exc, lower):
+            return message, status, error_type
+
+    # Keep detail visible for unknown failures so they can be classified later.
+    return f"Unexpected provider stream failure: {text}", 502, "unexpected_stream_error"
 
 
 # --- API ---
@@ -604,7 +656,12 @@ async def generate_chat_response(chat_id: str):
                         if reasoning:
                             accumulated_reasoning.append(reasoning)
         except httpx.HTTPError as exc:
-            yield _sse_error_event(f"Network failure while calling OpenRouter: {exc}", status_code=502)
+            msg, status, err_type = _format_stream_exception(exc)
+            yield _sse_error_event(msg, status_code=status, error_type=err_type)
+            return
+        except Exception as exc:
+            msg, status, err_type = _format_stream_exception(exc)
+            yield _sse_error_event(msg, status_code=status, error_type=err_type)
             return
         finally:
             content = "".join(accumulated_content).strip()
