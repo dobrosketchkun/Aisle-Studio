@@ -196,6 +196,33 @@ def _model_supports_tool(settings: dict, tool_key: str) -> bool:
     return False
 
 
+def _validate_attachments_for_model(chat: dict, settings: dict) -> str | None:
+    """
+    Validate attachment constraints for the selected model/provider.
+    Returns an error string if invalid, else None.
+    """
+    model = _resolve_openrouter_model(settings)
+    # Anthropic commonly enforces a 5MB/image limit.
+    if model.startswith("anthropic/"):
+        max_image_bytes = 5 * 1024 * 1024
+        for msg in chat.get("messages", []):
+            for f in msg.get("files", []):
+                ftype = str(f.get("type", ""))
+                if not ftype.startswith("image/"):
+                    continue
+                size = int(f.get("size", 0) or 0)
+                if size > max_image_bytes:
+                    size_mb = round(size / (1024 * 1024), 2)
+                    max_mb = round(max_image_bytes / (1024 * 1024), 2)
+                    fname = f.get("name") or f.get("filename") or "image"
+                    return (
+                        f'Image "{fname}" is {size_mb}MB, which exceeds the '
+                        f"Anthropic limit of {max_mb}MB per image for this model. "
+                        "Resize/compress the image or switch to a model with higher image limits."
+                    )
+    return None
+
+
 # Extensions / MIME types we treat as readable text and inject as content
 _TEXT_EXTENSIONS = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".htm", ".css", ".scss",
@@ -479,6 +506,13 @@ async def generate_chat_response(chat_id: str):
     chat = _read_chat(chat_id)
     settings = chat.get("settings", {})
     params = settings.get("params", {})
+
+    attachment_error = _validate_attachments_for_model(chat, settings)
+    if attachment_error:
+        return StreamingResponse(
+            iter([_sse_error_event(attachment_error, 400)]),
+            media_type="text/event-stream",
+        )
 
     # Get API key dynamically (keys.json → env var fallback)
     api_key = _get_api_key("openrouter")

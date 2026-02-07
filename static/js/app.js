@@ -24,6 +24,15 @@ const App = {
     return res.json();
   },
 
+  _normalizeErrorMessage(err) {
+    if (typeof err === 'string') return err;
+    if (err && typeof err === 'object') {
+      if (typeof err.message === 'string') return err.message;
+      try { return JSON.stringify(err); } catch (_) { /* ignore */ }
+    }
+    return String(err ?? 'Unknown error');
+  },
+
   async loadChatList() {
     this.chats = await this.api('GET', '/api/chats');
     Sidebar.renderChatList();
@@ -211,7 +220,7 @@ const App = {
 
             if (currentEvent === 'error' || data.error) {
               hadError = true;
-              Chat.showStreamingError(msgId, data.error || 'Unknown error');
+              Chat.showStreamingError(msgId, this._normalizeErrorMessage(data.error));
               return;
             }
 
