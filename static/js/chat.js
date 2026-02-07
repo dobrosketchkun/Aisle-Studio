@@ -177,7 +177,7 @@ const Chat = {
     const hasContent = msg.content && msg.content.trim().length > 0;
     let contentHtml = '';
     if (isUser) {
-      if (hasContent) contentHtml = `<div class="user-text">${this.escapeHtml(msg.content)}</div>`;
+      if (hasContent) contentHtml = `<div class="markdown-content user-text">${this._renderLatex(marked.parse(msg.content))}</div>`;
     } else {
       contentHtml = this.renderModelContent(msg);
     }
