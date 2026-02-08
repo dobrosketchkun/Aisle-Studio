@@ -1570,6 +1570,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Paste files (screenshots/images/docs) from clipboard into pending uploads.
+  textarea.addEventListener('paste', async (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    if (!items.length) return;
+
+    const files = [];
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+      const ext = (file.type && file.type.includes('/')) ? file.type.split('/')[1] : 'bin';
+      const hasName = file.name && file.name.trim() && file.name !== 'image.png';
+      const filename = hasName ? file.name : `pasted_${Date.now()}.${ext}`;
+      files.push(new File([file], filename, { type: file.type || 'application/octet-stream' }));
+    }
+
+    if (!files.length) return;
+
+    // If clipboard contains files, handle paste ourselves so browser does not inject junk text.
+    e.preventDefault();
+    await Chat.uploadFiles(files);
+
+    // Preserve any plain text from clipboard by inserting at caret.
+    const clipText = e.clipboardData?.getData('text/plain') || '';
+    if (clipText) {
+      const start = textarea.selectionStart ?? textarea.value.length;
+      const end = textarea.selectionEnd ?? textarea.value.length;
+      textarea.value = textarea.value.slice(0, start) + clipText + textarea.value.slice(end);
+      const nextPos = start + clipText.length;
+      textarea.setSelectionRange(nextPos, nextPos);
+      textarea.dispatchEvent(new Event('input'));
+    }
+  });
+
   /** Add files as separate messages + text as its own message, save once */
   async function addUserTurn(content, files) {
     // Each file becomes its own message
