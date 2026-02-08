@@ -656,7 +656,13 @@ const App = {
       if (delBtn) {
         e.stopPropagation();
         const id = delBtn.dataset.id;
-        if (!confirm('Delete this chat?')) return;
+        const ok = await this.showConfirmModal({
+          title: 'Delete chat?',
+          message: 'This will permanently delete this chat and its uploaded files.',
+          confirmLabel: 'Delete',
+          danger: true,
+        });
+        if (!ok) return;
         await this.deleteChat(id);
         allChats = allChats.filter(c => c.id !== id);
         if (searchResults) searchResults = searchResults.filter(c => c.id !== id);
@@ -678,6 +684,110 @@ const App = {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  },
+
+  showConfirmModal({
+    title = 'Confirm action',
+    message = 'Are you sure?',
+    confirmLabel = 'Confirm',
+    cancelLabel = 'Cancel',
+    danger = false,
+  } = {}) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal confirm-modal">
+          <div class="modal-header">
+            <h3>${this._escapeHtml(title)}</h3>
+            <button class="icon-btn icon-btn-sm" data-close>
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-message">${this._escapeHtml(message)}</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" data-close>${this._escapeHtml(cancelLabel)}</button>
+            <button class="btn-primary${danger ? ' btn-danger' : ''}" data-confirm>${this._escapeHtml(confirmLabel)}</button>
+          </div>
+        </div>`;
+
+      const cleanup = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      overlay.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => cleanup(false));
+      });
+      overlay.querySelector('[data-confirm]').addEventListener('click', () => cleanup(true));
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) cleanup(false);
+      });
+
+      document.body.appendChild(overlay);
+    });
+  },
+
+  showPromptModal({
+    title = 'Rename chat',
+    value = '',
+    placeholder = '',
+    confirmLabel = 'Save',
+    cancelLabel = 'Cancel',
+  } = {}) {
+    return new Promise((resolve) => {
+      const safeValue = this._escapeHtml(value);
+      const safePlaceholder = this._escapeHtml(placeholder);
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal prompt-modal">
+          <div class="modal-header">
+            <h3>${this._escapeHtml(title)}</h3>
+            <button class="icon-btn icon-btn-sm" data-close>
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <input id="prompt-modal-input" class="modal-text-input" type="text" value="${safeValue}" placeholder="${safePlaceholder}">
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" data-close>${this._escapeHtml(cancelLabel)}</button>
+            <button class="btn-primary" data-confirm>${this._escapeHtml(confirmLabel)}</button>
+          </div>
+        </div>`;
+
+      const cleanup = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      const onConfirm = () => {
+        const input = overlay.querySelector('#prompt-modal-input');
+        cleanup(input ? input.value : null);
+      };
+
+      overlay.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => cleanup(null));
+      });
+      overlay.querySelector('[data-confirm]').addEventListener('click', onConfirm);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) cleanup(null);
+      });
+      overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') cleanup(null);
+        if (e.key === 'Enter') onConfirm();
+      });
+
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('#prompt-modal-input');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
   },
 
   /** Show a brief toast notification */

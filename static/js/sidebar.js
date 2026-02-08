@@ -128,21 +128,25 @@ const Sidebar = {
     const renameBtn = document.createElement('button');
     renameBtn.className = 'context-menu-item';
     renameBtn.innerHTML = '<span class="material-symbols-outlined">edit</span><span>Rename</span>';
-    renameBtn.addEventListener('click', (e) => {
+    renameBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       menu.remove();
-      this.promptRename(chatId, chatTitle);
+      await this.promptRename(chatId, chatTitle);
     });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'context-menu-item';
     deleteBtn.innerHTML = '<span class="material-symbols-outlined">delete</span><span>Delete</span>';
-    deleteBtn.addEventListener('click', (e) => {
+    deleteBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       menu.remove();
-      if (confirm('Delete this chat?')) {
-        App.deleteChat(chatId);
-      }
+      const ok = await App.showConfirmModal({
+        title: 'Delete chat?',
+        message: 'This will permanently delete this chat and its uploaded files.',
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (ok) await App.deleteChat(chatId);
     });
 
     menu.appendChild(renameBtn);
@@ -167,10 +171,15 @@ const Sidebar = {
     });
   },
 
-  promptRename(chatId, currentTitle) {
-    const newTitle = prompt('Rename chat:', currentTitle);
+  async promptRename(chatId, currentTitle) {
+    const newTitle = await App.showPromptModal({
+      title: 'Rename chat',
+      value: currentTitle || '',
+      placeholder: 'Chat title...',
+      confirmLabel: 'Save',
+    });
     if (newTitle && newTitle.trim()) {
-      App.renameChat(chatId, newTitle.trim());
+      await App.renameChat(chatId, newTitle.trim());
     }
   },
 };

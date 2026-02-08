@@ -1558,6 +1558,40 @@ ul {
   background: var(--accent-blue);
 }
 
+.btn-primary.btn-danger {
+  background: #c23a34;
+}
+
+.btn-primary.btn-danger:hover {
+  background: #a9302b;
+}
+
+.confirm-modal,
+.prompt-modal {
+  width: 440px;
+}
+
+.modal-message {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modal-text-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--outline-subtle);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.modal-text-input:focus {
+  border-color: var(--outline-accent);
+}
+
 /* ============================================================
    MERMAID DIAGRAMS
    ============================================================ */
