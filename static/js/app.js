@@ -11,9 +11,11 @@ const App = {
   abortController: null,
   pendingFiles: [],    // files uploaded but not yet sent with a message
   keyStatus: {},       // { provider: bool } -- which providers have keys configured
+  preferences: {},
   theme: 'dark',
   chatFontScale: 1,
   promptCollapsed: false,
+  namingChatId: null,
   pendingRerunContext: null, // { anchorId, mode: 'overwrite'|'branch', createdBranchId? }
 
   /** API helpers */
@@ -212,6 +214,51 @@ const App = {
       document.getElementById('chat-title').textContent = newTitle;
     }
     await this.loadChatList();
+  },
+
+  _getModelOptions() {
+    const options = [];
+    for (const [providerKey, provider] of Object.entries(this.providers || {})) {
+      for (const model of provider.models || []) {
+        options.push({
+          provider: providerKey,
+          providerName: provider.name || providerKey,
+          model: model.id,
+          label: model.name || model.id,
+        });
+      }
+    }
+    return options;
+  },
+
+  async generateChatTitle(chatId) {
+    const chat = await this.api('GET', `/api/chats/${chatId}`);
+    const selection = await this.showGenerateNameModal(chat);
+    if (!selection) return;
+    this.namingChatId = chatId;
+    if (typeof Sidebar !== 'undefined') Sidebar.renderChatList();
+    try {
+      await this.saveModelPreference(selection.provider, selection.model);
+      const result = await this.api('POST', `/api/chats/${chatId}/generate-title`, selection);
+      await this.loadChatList();
+
+      if (this.currentChatId === chatId) {
+        this.currentChat = await this.api('GET', `/api/chats/${chatId}`);
+        if (!this.currentChat.branch_state || typeof this.currentChat.branch_state !== 'object') {
+          this.currentChat.branch_state = {};
+        }
+        document.getElementById('chat-title').textContent = this.currentChat.title;
+        if (typeof Settings !== 'undefined') Settings.loadFromChat();
+        if (typeof Chat !== 'undefined') Chat.render();
+        this.updateTokenCount();
+        this.updateKeyIndicator();
+      }
+
+      this.showToast(`Generated: ${result.title}`);
+    } finally {
+      this.namingChatId = null;
+      if (typeof Sidebar !== 'undefined') Sidebar.renderChatList();
+    }
   },
 
   updateTokenCount() {
@@ -790,6 +837,113 @@ const App = {
     });
   },
 
+  showGenerateNameModal(chat) {
+    return new Promise((resolve) => {
+      const modelOptions = this._getModelOptions();
+      if (!modelOptions.length) {
+        this.showToast('No models available. Add a model first.');
+        resolve(null);
+        return;
+      }
+
+      const prefProvider = this.preferences?.title_provider;
+      const prefModel = this.preferences?.title_model;
+      const hasPref = modelOptions.some(o => o.provider === prefProvider && o.model === prefModel);
+      const currentProvider = hasPref ? prefProvider : (chat?.settings?.provider || modelOptions[0].provider);
+      const currentModel = hasPref ? prefModel : (chat?.settings?.model || modelOptions[0].model);
+
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal prompt-modal">
+          <div class="modal-header">
+            <h3>Generate chat name</h3>
+            <button class="icon-btn icon-btn-sm" data-close>
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-message">Uses the first user message and first attached files. Selected model is saved only for name generation.</p>
+            <div style="margin-top:10px;">
+              <label class="settings-label" for="namegen-provider">Provider</label>
+              <select id="namegen-provider" class="settings-select"></select>
+            </div>
+            <div style="margin-top:10px;">
+              <label class="settings-label" for="namegen-model">Model</label>
+              <select id="namegen-model" class="settings-select"></select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" data-close>Cancel</button>
+            <button class="btn-primary" data-confirm>Generate</button>
+          </div>
+        </div>`;
+
+      const providerSelect = () => overlay.querySelector('#namegen-provider');
+      const modelSelect = () => overlay.querySelector('#namegen-model');
+
+      const renderProviders = () => {
+        const providers = [...new Set(modelOptions.map(o => o.provider))];
+        providerSelect().innerHTML = providers.map(p => {
+          const pName = this.providers[p]?.name || p;
+          return `<option value="${this._escapeHtml(p)}">${this._escapeHtml(pName)}</option>`;
+        }).join('');
+      };
+
+      const renderModels = (provider) => {
+        const options = modelOptions.filter(o => o.provider === provider);
+        modelSelect().innerHTML = options.map(o => (
+          `<option value="${this._escapeHtml(o.model)}">${this._escapeHtml(o.label)}</option>`
+        )).join('');
+      };
+
+      const cleanup = (result) => {
+        overlay.remove();
+        resolve(result);
+      };
+
+      document.body.appendChild(overlay);
+      renderProviders();
+      providerSelect().value = currentProvider;
+      renderModels(providerSelect().value);
+      const hasCurrentModel = modelOptions.some(o => o.provider === providerSelect().value && o.model === currentModel);
+      modelSelect().value = hasCurrentModel ? currentModel : modelSelect().value;
+
+      providerSelect().addEventListener('change', () => renderModels(providerSelect().value));
+      overlay.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => cleanup(null));
+      });
+      overlay.querySelector('[data-confirm]').addEventListener('click', () => {
+        cleanup({
+          provider: providerSelect().value,
+          model: modelSelect().value,
+        });
+      });
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) cleanup(null);
+      });
+    });
+  },
+
+  async loadPreferences() {
+    try {
+      this.preferences = await this.api('GET', '/api/preferences');
+    } catch (_) {
+      this.preferences = {};
+    }
+  },
+
+  async saveModelPreference(provider, model) {
+    try {
+      this.preferences = await this.api('PUT', '/api/preferences', {
+        title_provider: provider,
+        title_model: model,
+      });
+    } catch (_) {
+      // Preference save should not block title generation.
+    }
+  },
+
   /** Show a brief toast notification */
   showToast(message, duration = 3000) {
     let container = document.getElementById('toast-container');
@@ -1049,6 +1203,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {
     console.error('Failed to load providers.json', e);
   }
+
+  await App.loadPreferences();
 
   // Load API key status
   await App.loadKeyStatus();

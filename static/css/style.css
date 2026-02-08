@@ -305,6 +305,24 @@ ul {
   position: relative;
 }
 
+.chat-history-item.title-generating::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border: 2px solid var(--text-secondary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: chat-title-spin 0.8s linear infinite;
+}
+
+.chat-history-item.title-generating .chat-history-link {
+  padding-left: 24px;
+}
+
 .chat-history-item:hover {
   background: var(--nav-hover);
 }
@@ -332,6 +350,12 @@ ul {
 
 .chat-history-item:hover .chat-history-link {
   color: var(--text);
+}
+
+@keyframes chat-title-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .chat-history-menu-btn {

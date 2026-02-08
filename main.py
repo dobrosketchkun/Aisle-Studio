@@ -27,6 +27,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 KEYS_FILE = Path(__file__).parent / "data" / "keys.json"
+PREFERENCES_FILE = Path(__file__).parent / "data" / "preferences.json"
 
 # Environment variable mapping for each provider
 _ENV_KEY_MAP = {
@@ -64,6 +65,25 @@ def _get_api_key(provider: str) -> str | None:
     return None
 
 
+def _load_preferences() -> dict:
+    if PREFERENCES_FILE.exists():
+        try:
+            data = json.loads(PREFERENCES_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+
+def _save_preferences(prefs: dict):
+    PREFERENCES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PREFERENCES_FILE.write_text(
+        json.dumps(prefs, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 # --- Models ---
 
 class ChatSettings(BaseModel):
@@ -91,6 +111,11 @@ class ChatUpdate(BaseModel):
 
 class CreateChatRequest(BaseModel):
     settings: ChatSettings | None = None
+
+
+class GenerateTitleRequest(BaseModel):
+    provider: str | None = None
+    model: str | None = None
 
 
 # --- Helpers ---
@@ -180,6 +205,29 @@ def _get_model_capabilities(settings: dict) -> set[str]:
         if m.get("id") == model_id:
             return set(m.get("multimodal", []))
     return set()
+
+
+def _get_model_schema(provider_key: str, model_id: str) -> dict | None:
+    providers = _load_providers()
+    provider = providers.get(provider_key, {})
+    for m in provider.get("models", []):
+        if m.get("id") == model_id:
+            return m
+    return None
+
+
+def _default_params_for_model(provider_key: str, model_id: str) -> dict:
+    model = _get_model_schema(provider_key, model_id)
+    if not model:
+        return {}
+    params_defaults = {}
+    for p in model.get("params", []):
+        key = p.get("key")
+        if isinstance(key, str) and "default" in p:
+            params_defaults[key] = p["default"]
+    if any(t.get("key") == "thinking" for t in model.get("tools", [])):
+        params_defaults["thinking"] = True
+    return params_defaults
 
 
 def _model_supports_tool(settings: dict, tool_key: str) -> bool:
@@ -335,6 +383,103 @@ def _extract_reasoning(delta: dict) -> str:
                 parts.append(part.get("text", ""))
         return "".join(parts)
     return ""
+
+
+def _extract_message_text(message: dict) -> str:
+    content = message.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                parts.append(part.get("text", ""))
+        return "".join(parts)
+    return ""
+
+
+def _sanitize_generated_title(raw: str) -> str:
+    text = " ".join((raw or "").strip().split())
+    if not text:
+        return "Untitled chat"
+    # Keep first line only and remove wrapping quotes/markdown emphasis.
+    text = text.splitlines()[0].strip().strip('`"\'')
+    while text.startswith(("*", "_", "#", "-", "•")):
+        text = text[1:].strip()
+    if len(text) > 80:
+        text = text[:80].rstrip()
+    return text or "Untitled chat"
+
+
+def _build_title_user_content(
+    chat_id: str,
+    first_user_msg: dict,
+    capabilities: set[str],
+) -> str | list[dict]:
+    text = str(first_user_msg.get("content", "") or "").strip()
+    files = first_user_msg.get("files", []) or []
+
+    seed_text = (
+        "Create a short title for this chat based only on this first user message and files.\n"
+        "Return only the title.\n"
+        "Constraints: 3-7 words, no quotes, no markdown, no trailing period.\n\n"
+        f"First user text:\n{text or '[no text]'}\n\n"
+        "Files (included below when possible):"
+    )
+
+    parts: list[dict] = [{"type": "text", "text": seed_text}]
+
+    for f in files:
+        ftype = f.get("type", "")
+        fname = f.get("name", f.get("filename", "file"))
+        category = ftype.split("/")[0] if ftype else ""
+        file_path = DATA_DIR / chat_id / "files" / f.get("filename", "")
+
+        if not file_path.exists():
+            parts.append({
+                "type": "text",
+                "text": f"- {fname} ({ftype or 'unknown'}) [missing file on disk]",
+            })
+            continue
+
+        if category in ("image", "video", "audio"):
+            if category in capabilities:
+                data = base64.b64encode(file_path.read_bytes()).decode("utf-8")
+                parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{ftype};base64,{data}"},
+                })
+            else:
+                parts.append({
+                    "type": "text",
+                    "text": (
+                        f"- {fname} ({ftype or 'unknown'}) "
+                        "[model does not support this media type; filename only]"
+                    ),
+                })
+        elif _is_text_file(fname, ftype):
+            try:
+                file_text = file_path.read_text(encoding="utf-8", errors="replace")
+                if len(file_text) > 6000:
+                    file_text = file_text[:6000] + "\n...[truncated]"
+                parts.append({
+                    "type": "text",
+                    "text": f"--- File: {fname} ---\n{file_text}\n--- End of {fname} ---",
+                })
+            except Exception:
+                parts.append({
+                    "type": "text",
+                    "text": f"- {fname} ({ftype or 'unknown'}) [failed to read, filename only]",
+                })
+        else:
+            parts.append({
+                "type": "text",
+                "text": f"- {fname} ({ftype or 'unknown'}) [binary file, filename only]",
+            })
+
+    if len(parts) == 1:
+        return seed_text
+    return parts
 
 
 def _sse_error_event(message: str, status_code: int = 500, error_type: str = "provider_error") -> str:
@@ -530,8 +675,115 @@ def delete_chat(chat_id: str):
     return {"ok": True}
 
 
+@app.post("/api/chats/{chat_id}/generate-title")
+async def generate_chat_title(chat_id: str, req: GenerateTitleRequest | None = None):
+    chat = _read_chat(chat_id)
+    settings = dict(chat.get("settings", {}))
+    defaults = _default_chat_settings()
+    prefs = _load_preferences()
+
+    provider = (
+        (req.provider if req else None)
+        or prefs.get("title_provider")
+        or settings.get("provider")
+        or defaults.get("provider")
+        or "openrouter"
+    )
+    model = (
+        (req.model if req else None)
+        or prefs.get("title_model")
+        or settings.get("model")
+        or defaults.get("model")
+        or "google/gemini-3-pro-preview"
+    )
+
+    selected_settings = dict(settings)
+    selected_settings["provider"] = provider
+    selected_settings["model"] = model
+    if (
+        selected_settings.get("provider") != settings.get("provider")
+        or selected_settings.get("model") != settings.get("model")
+    ):
+        model_defaults = _default_params_for_model(provider, model)
+        selected_settings["params"] = model_defaults or defaults.get("params", {})
+
+    first_user_msg = None
+    for msg in chat.get("messages", []):
+        if msg.get("role") != "user":
+            continue
+        if str(msg.get("content", "")).strip() or (msg.get("files") or []):
+            first_user_msg = msg
+            break
+    if not first_user_msg:
+        raise HTTPException(
+            status_code=400,
+            detail="No user message found to generate a title from.",
+        )
+
+    api_key = _get_api_key("openrouter")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="No OpenRouter API key configured")
+
+    capabilities = _get_model_capabilities(selected_settings)
+    user_content = _build_title_user_content(chat_id, first_user_msg, capabilities)
+
+    request_body = {
+        "model": _resolve_openrouter_model(selected_settings),
+        "messages": [{"role": "user", "content": user_content}],
+        "stream": False,
+        "temperature": 0.2,
+        "max_tokens": 32,
+    }
+    request_body["system"] = (
+        "You write concise chat titles. Output only one short title and nothing else."
+    )
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, read=90.0)) as client:
+        response = await client.post(
+            OPENROUTER_API_URL,
+            headers=headers,
+            json=request_body,
+        )
+
+    if response.status_code >= 400:
+        error_message = f"OpenRouter request failed with status {response.status_code}"
+        try:
+            parsed = response.json()
+            if isinstance(parsed, dict):
+                error = parsed.get("error")
+                if isinstance(error, dict):
+                    error_message = error.get("message", error_message)
+                elif isinstance(error, str):
+                    error_message = error
+        except Exception:
+            pass
+        raise HTTPException(status_code=response.status_code, detail=error_message)
+
+    data = response.json()
+    choices = data.get("choices", [])
+    if not choices:
+        raise HTTPException(status_code=502, detail="Provider returned no title candidates")
+    message = choices[0].get("message", {})
+    raw_title = _extract_message_text(message)
+    title = _sanitize_generated_title(raw_title)
+
+    chat["title"] = title
+    _write_chat(chat)
+    return {"title": title}
+
+
 class KeysUpdate(BaseModel):
     keys: dict[str, str] = Field(default_factory=dict)
+
+
+class PreferencesUpdate(BaseModel):
+    title_provider: str | None = None
+    title_model: str | None = None
 
 
 @app.get("/api/keys")
@@ -555,6 +807,39 @@ def update_keys(update: KeysUpdate):
     # Return updated status
     providers = list(_load_providers().keys())
     return {p: bool(_get_api_key(p)) for p in providers}
+
+
+@app.get("/api/preferences")
+def get_preferences():
+    return _load_preferences()
+
+
+@app.put("/api/preferences")
+def update_preferences(update: PreferencesUpdate):
+    prefs = _load_preferences()
+    providers = _load_providers()
+
+    provider = update.title_provider if update.title_provider is not None else prefs.get("title_provider")
+    model = update.title_model if update.title_model is not None else prefs.get("title_model")
+
+    if provider is not None:
+        provider = str(provider).strip()
+    if model is not None:
+        model = str(model).strip()
+
+    if provider and model:
+        p = providers.get(provider)
+        exists = bool(p and any(m.get("id") == model for m in p.get("models", [])))
+        if not exists:
+            raise HTTPException(status_code=400, detail="Invalid provider/model preference")
+        prefs["title_provider"] = provider
+        prefs["title_model"] = model
+    elif update.title_provider is not None or update.title_model is not None:
+        prefs.pop("title_provider", None)
+        prefs.pop("title_model", None)
+
+    _save_preferences(prefs)
+    return prefs
 
 
 @app.post("/api/chats/{chat_id}/generate")

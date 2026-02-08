@@ -14,6 +14,7 @@ const Sidebar = {
       const li = document.createElement('li');
       li.className = 'chat-history-item';
       if (chat.id === App.currentChatId) li.classList.add('active');
+      if (App.namingChatId === chat.id) li.classList.add('title-generating');
       li.dataset.chatId = chat.id;
 
       const link = document.createElement('span');
@@ -77,6 +78,7 @@ const Sidebar = {
       const li = document.createElement('li');
       li.className = 'chat-history-item';
       if (r.id === App.currentChatId) li.classList.add('active');
+      if (App.namingChatId === r.id) li.classList.add('title-generating');
       li.dataset.chatId = r.id;
 
       const link = document.createElement('div');
@@ -134,6 +136,19 @@ const Sidebar = {
       await this.promptRename(chatId, chatTitle);
     });
 
+    const genNameBtn = document.createElement('button');
+    genNameBtn.className = 'context-menu-item';
+    genNameBtn.innerHTML = '<span class="material-symbols-outlined">auto_awesome</span><span>Generate name</span>';
+    genNameBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      menu.remove();
+      try {
+        await App.generateChatTitle(chatId);
+      } catch (err) {
+        App.showToast(App._normalizeErrorMessage(err));
+      }
+    });
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'context-menu-item';
     deleteBtn.innerHTML = '<span class="material-symbols-outlined">delete</span><span>Delete</span>';
@@ -150,6 +165,7 @@ const Sidebar = {
     });
 
     menu.appendChild(renameBtn);
+    menu.appendChild(genNameBtn);
     menu.appendChild(deleteBtn);
 
     document.body.appendChild(menu);
