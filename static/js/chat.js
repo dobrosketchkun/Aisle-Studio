@@ -129,6 +129,8 @@ const Chat = {
   render() {
     const container = document.getElementById('chat-messages');
     const emptyState = document.getElementById('empty-state');
+    const preserveScroll = this._preserveScrollOnNextRender;
+    const prevTop = container.scrollTop;
 
     if (!App.currentChat || App.currentChat.messages.length === 0) {
       this.renderEmpty();
@@ -153,8 +155,13 @@ const Chat = {
     // Generate video thumbnails in chat messages
     this._generateChatVideoThumbnails(container);
 
-    // Scroll to bottom
-    container.scrollTop = container.scrollHeight;
+    if (preserveScroll) {
+      container.scrollTop = prevTop;
+      this._preserveScrollOnNextRender = false;
+    } else {
+      // Scroll to bottom
+      container.scrollTop = container.scrollHeight;
+    }
   },
 
   renderEmpty() {
@@ -577,6 +584,7 @@ const Chat = {
   _pendingStream: null,
   _streamRenderTimer: null,
   _userScrolledUp: false,
+  _preserveScrollOnNextRender: false,
   _programmaticScroll: false,
   _scrollHandler: null,
 
@@ -588,6 +596,7 @@ const Chat = {
 
     // Reset scroll tracking for this generation
     this._userScrolledUp = false;
+    this._preserveScrollOnNextRender = false;
     this._setupScrollListener();
 
     const turnHtml = `
@@ -697,6 +706,9 @@ const Chat = {
     if (this._streamRenderTimer) {
       clearTimeout(this._streamRenderTimer);
       this._streamRenderTimer = null;
+    }
+    if (this._userScrolledUp) {
+      this._preserveScrollOnNextRender = true;
     }
     this._removeScrollListener();
     this._userScrolledUp = false;
