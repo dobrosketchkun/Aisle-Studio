@@ -477,6 +477,7 @@ const Chat = {
       ...App.currentChat.messages.slice(0, anchorIdx + 1),
       ...tail,
     ];
+    this._preserveScrollOnNextRender = true;
     App.saveChat().then(() => {
       Chat.render();
       App.updateTokenCount();
@@ -530,6 +531,7 @@ const Chat = {
         ...tail,
       ];
     }
+    this._preserveScrollOnNextRender = true;
     App.saveChat().then(() => {
       Chat.render();
       App.updateTokenCount();
