@@ -86,6 +86,7 @@ class ChatUpdate(BaseModel):
     settings: ChatSettings | None = None
     messages: list[Message] | None = None
     bookmarked: bool | None = None
+    branch_state: dict | None = None
 
 
 class CreateChatRequest(BaseModel):
@@ -482,6 +483,7 @@ def create_chat(payload: CreateChatRequest | None = None):
         "updated_at": now,
         "settings": settings,
         "messages": [],
+        "branch_state": {},
     }
     _write_chat(chat)
     return chat
@@ -509,6 +511,8 @@ def update_chat(chat_id: str, update: ChatUpdate):
         chat["messages"] = msgs
     if update.bookmarked is not None:
         chat["bookmarked"] = update.bookmarked
+    if update.branch_state is not None:
+        chat["branch_state"] = update.branch_state
     _write_chat(chat)
     return chat
 

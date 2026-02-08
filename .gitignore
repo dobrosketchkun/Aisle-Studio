@@ -1,11 +1,4 @@
 references/
 .env
 data/chats/
-data/keys.json
-1_Screenshot 2026-02-06 140941.png
-2_Screenshot 2026-02-06 141018.png
-3_Screenshot 2026-02-06 152658.png
-4_Screenshot 2026-02-06 162202.png
-5_Screenshot 2026-02-06 162235.png
-static/providers.json.bak
-6_Screenshot 2026-02-06 180415.png
+*.zip

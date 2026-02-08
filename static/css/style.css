@@ -576,6 +576,67 @@ ul {
   border: 1px solid var(--outline-subtle);
 }
 
+.branch-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--outline-subtle);
+  background: var(--surface-container);
+}
+
+.branch-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.branch-nav-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.branch-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.branch-nav-label {
+  min-width: 40px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.branch-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.branch-delete-btn:hover {
+  background: var(--hover);
+  color: var(--error);
+}
+
+.branch-delete-btn .material-symbols-outlined {
+  font-size: 14px;
+  line-height: 1;
+  display: block;
+}
+
 .chat-turn:hover .turn-actions {
   opacity: 1;
 }
@@ -1423,6 +1484,10 @@ ul {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+}
+
+.branch-delete-modal {
+  width: 420px;
 }
 
 .modal-header {

@@ -194,6 +194,7 @@ const Chat = {
 
     const filesHtml = this.renderFileAttachments(msg.files, App.currentChat?.id, msg.id);
     const labelHtml = showLabel ? `<div class="turn-role-label ${labelClass}">${roleLabel}</div>` : '';
+    const branchNavHtml = this.renderBranchNavigator(msg.id);
 
     return `
       <div class="chat-turn${continuationClass}" data-msg-id="${msg.id}">
@@ -201,18 +202,40 @@ const Chat = {
         <div class="turn-content">
           ${filesHtml}
           ${contentHtml}
+          ${branchNavHtml}
           <div class="turn-actions">
             <button class="turn-action-btn" onclick="Chat.startEdit('${msg.id}')" title="Edit">
               <span class="material-symbols-outlined">edit</span>
             </button>
-            <button class="turn-action-btn" onclick="Chat.rerunFrom('${msg.id}')" title="Rerun from here">
+            <button class="turn-action-btn" onclick="Chat.rerunFrom('${msg.id}')" title="Rerun (overwrite)">
               ${sparkleSvg}
+            </button>
+            <button class="turn-action-btn" onclick="Chat.branchRerunFrom('${msg.id}')" title="Branch + rerun">
+              <span class="material-symbols-outlined">fork_right</span>
             </button>
             <button class="turn-action-btn" onclick="Chat.showTurnMenu(event, '${msg.id}')" title="More options">
               <span class="material-symbols-outlined">more_vert</span>
             </button>
           </div>
         </div>
+      </div>`;
+  },
+
+  renderBranchNavigator(anchorId) {
+    const point = App.getBranchPoint(anchorId);
+    if (!point || point.branches.length <= 1) return '';
+    const current = point.active + 1;
+    const total = point.branches.length;
+    const canPrev = point.active > 0;
+    const canNext = point.active < total - 1;
+    return `
+      <div class="branch-nav">
+        <button class="branch-nav-btn" ${canPrev ? '' : 'disabled'} onclick="Chat.shiftBranch('${anchorId}', -1)" title="Previous branch">&lt;</button>
+        <span class="branch-nav-label">${current} / ${total}</span>
+        <button class="branch-nav-btn" ${canNext ? '' : 'disabled'} onclick="Chat.shiftBranch('${anchorId}', 1)" title="Next branch">&gt;</button>
+        <button class="branch-delete-btn" onclick="Chat.confirmDeleteBranch('${anchorId}')" title="Delete current branch">
+          <span class="material-symbols-outlined">delete</span>
+        </button>
       </div>`;
   },
 
@@ -356,37 +379,153 @@ const Chat = {
         navigator.clipboard.writeText(msg.content);
         break;
       case 'branch':
-        // Future: branch conversation from this point
+        this.branchRerunFrom(msgId);
         break;
     }
   },
 
-  /** Rerun: delete messages from this point and regenerate */
-  rerunFrom(msgId) {
-    if (!App.currentChat || App.isGenerating) return;
-    const messages = App.currentChat.messages;
+  _resolveRerunAnchorIndex(msgId) {
+    const messages = App.currentChat?.messages || [];
     const idx = messages.findIndex(m => m.id === msgId);
-    if (idx === -1) return;
-
+    if (idx === -1) return -1;
     const msg = messages[idx];
     if (msg.role === 'model' || msg.role === 'assistant') {
-      // Delete this model message and everything after
-      App.currentChat.messages = messages.slice(0, idx);
-    } else {
-      // User message: find the end of the consecutive user group
-      // (file msgs + text msg are all separate user messages now)
-      let endIdx = idx;
-      while (endIdx + 1 < messages.length && messages[endIdx + 1].role === 'user') {
-        endIdx++;
-      }
-      // Keep the entire user group, delete everything after
-      App.currentChat.messages = messages.slice(0, endIdx + 1);
+      return idx - 1; // rerun response after the previous prompt context
     }
+    // For user messages, include contiguous user block (files + text turns)
+    let endIdx = idx;
+    while (endIdx + 1 < messages.length && messages[endIdx + 1].role === 'user') {
+      endIdx++;
+    }
+    return endIdx;
+  },
+
+  _ensureBranchPoint(anchorId) {
+    const branchState = App._ensureBranchState();
+    if (branchState[anchorId]) return branchState[anchorId];
+    const anchorIdx = App.currentChat.messages.findIndex(m => m.id === anchorId);
+    const oldTail = anchorIdx >= 0 ? App._clone(App.currentChat.messages.slice(anchorIdx + 1)) : [];
+    branchState[anchorId] = {
+      active: 0,
+      branches: [{ id: crypto.randomUUID(), tail: oldTail }],
+    };
+    return branchState[anchorId];
+  },
+
+  /** Rerun (overwrite current continuation) */
+  rerunFrom(msgId) {
+    if (!App.currentChat || App.isGenerating) return;
+    const anchorIdx = this._resolveRerunAnchorIndex(msgId);
+    if (anchorIdx < 0) return;
+    const anchor = App.currentChat.messages[anchorIdx];
+    const anchorId = anchor.id;
+    const point = this._ensureBranchPoint(anchorId);
+
+    // Trim to prefix; generation will rebuild active branch tail.
+    App.currentChat.messages = App.currentChat.messages.slice(0, anchorIdx + 1);
+    point.branches[point.active].tail = [];
+    App.pendingRerunContext = { anchorId, mode: 'overwrite' };
 
     App.saveChat().then(() => {
       Chat.render();
       App.updateTokenCount();
       App.generateResponse();
+    });
+  },
+
+  /** Branch + rerun (create sibling branch and generate there) */
+  branchRerunFrom(msgId) {
+    if (!App.currentChat || App.isGenerating) return;
+    const anchorIdx = this._resolveRerunAnchorIndex(msgId);
+    if (anchorIdx < 0) return;
+    const anchor = App.currentChat.messages[anchorIdx];
+    const anchorId = anchor.id;
+    const point = this._ensureBranchPoint(anchorId);
+
+    const newBranchId = crypto.randomUUID();
+    point.branches.push({ id: newBranchId, tail: [] });
+    point.active = point.branches.length - 1;
+
+    App.currentChat.messages = App.currentChat.messages.slice(0, anchorIdx + 1);
+    App.pendingRerunContext = { anchorId, mode: 'branch', createdBranchId: newBranchId };
+
+    App.saveChat().then(() => {
+      Chat.render();
+      App.updateTokenCount();
+      App.generateResponse();
+    });
+  },
+
+  shiftBranch(anchorId, delta) {
+    if (!App.currentChat || App.isGenerating) return;
+    const point = App.getBranchPoint(anchorId);
+    if (!point) return;
+    const next = point.active + delta;
+    if (next < 0 || next >= point.branches.length) return;
+    point.active = next;
+    const anchorIdx = App.currentChat.messages.findIndex(m => m.id === anchorId);
+    if (anchorIdx === -1) return;
+    const tail = App._clone(point.branches[point.active].tail || []);
+    App.currentChat.messages = [
+      ...App.currentChat.messages.slice(0, anchorIdx + 1),
+      ...tail,
+    ];
+    App.saveChat().then(() => {
+      Chat.render();
+      App.updateTokenCount();
+    });
+  },
+
+  confirmDeleteBranch(anchorId) {
+    const point = App.getBranchPoint(anchorId);
+    if (!point || point.branches.length <= 1) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal branch-delete-modal">
+        <div class="modal-header">
+          <h3>Delete branch?</h3>
+          <button class="icon-btn icon-btn-sm" data-close>
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>This will remove branch ${point.active + 1} of ${point.branches.length}.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" data-close>Cancel</button>
+          <button class="btn-primary" data-confirm>Delete</button>
+        </div>
+      </div>`;
+
+    const close = () => overlay.remove();
+    overlay.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-confirm]').addEventListener('click', () => {
+      close();
+      this.deleteActiveBranch(anchorId);
+    });
+    document.body.appendChild(overlay);
+  },
+
+  deleteActiveBranch(anchorId) {
+    const point = App.getBranchPoint(anchorId);
+    if (!point || point.branches.length <= 1) return;
+    const deleteIdx = point.active;
+    point.branches.splice(deleteIdx, 1);
+    point.active = Math.max(0, deleteIdx - 1);
+    const anchorIdx = App.currentChat.messages.findIndex(m => m.id === anchorId);
+    if (anchorIdx !== -1) {
+      const tail = App._clone(point.branches[point.active].tail || []);
+      App.currentChat.messages = [
+        ...App.currentChat.messages.slice(0, anchorIdx + 1),
+        ...tail,
+      ];
+    }
+    App.saveChat().then(() => {
+      Chat.render();
+      App.updateTokenCount();
     });
   },
 

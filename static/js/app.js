@@ -14,6 +14,7 @@ const App = {
   theme: 'dark',
   chatFontScale: 1,
   promptCollapsed: false,
+  pendingRerunContext: null, // { anchorId, mode: 'overwrite'|'branch', createdBranchId? }
 
   /** API helpers */
   async api(method, path, body) {
@@ -128,6 +129,9 @@ const App = {
     if (this.currentChatId === chatId && this.currentChat) return;
     this.currentChatId = chatId;
     this.currentChat = await this.api('GET', `/api/chats/${chatId}`);
+    if (!this.currentChat.branch_state || typeof this.currentChat.branch_state !== 'object') {
+      this.currentChat.branch_state = {};
+    }
     Sidebar.setActive(chatId);
     Chat.render();
     Settings.loadFromChat();
@@ -138,12 +142,53 @@ const App = {
 
   async saveChat() {
     if (!this.currentChat) return;
+    this.syncActiveBranchTails();
     await this.api('PUT', `/api/chats/${this.currentChat.id}`, {
       title: this.currentChat.title,
       settings: this.currentChat.settings,
       messages: this.currentChat.messages,
+      branch_state: this.currentChat.branch_state || {},
     });
     await this.loadChatList();
+  },
+
+  _clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  },
+
+  _ensureBranchState() {
+    if (!this.currentChat) return {};
+    if (!this.currentChat.branch_state || typeof this.currentChat.branch_state !== 'object') {
+      this.currentChat.branch_state = {};
+    }
+    return this.currentChat.branch_state;
+  },
+
+  getBranchPoint(anchorId) {
+    if (!this.currentChat) return null;
+    const branchState = this._ensureBranchState();
+    const point = branchState[anchorId];
+    if (!point || !Array.isArray(point.branches) || point.branches.length === 0) return null;
+    if (typeof point.active !== 'number' || point.active < 0 || point.active >= point.branches.length) {
+      point.active = 0;
+    }
+    return point;
+  },
+
+  syncActiveBranchTails() {
+    if (!this.currentChat || !Array.isArray(this.currentChat.messages)) return;
+    const branchState = this._ensureBranchState();
+    const messages = this.currentChat.messages;
+    for (const [anchorId, point] of Object.entries(branchState)) {
+      if (!point || !Array.isArray(point.branches) || !point.branches.length) continue;
+      const anchorIdx = messages.findIndex(m => m.id === anchorId);
+      if (anchorIdx === -1) continue;
+      if (typeof point.active !== 'number' || point.active < 0 || point.active >= point.branches.length) {
+        point.active = 0;
+      }
+      const tail = this._clone(messages.slice(anchorIdx + 1));
+      point.branches[point.active].tail = tail;
+    }
   },
 
   async deleteChat(chatId) {
@@ -248,7 +293,10 @@ const App = {
 
     if (typeof Chat !== 'undefined' && Chat.preflightImagesForGenerate) {
       const okToProceed = await Chat.preflightImagesForGenerate();
-      if (!okToProceed) return;
+      if (!okToProceed) {
+        this.pendingRerunContext = null;
+        return;
+      }
     }
 
     const chatId = this.currentChat.id;
@@ -266,6 +314,7 @@ const App = {
     let accContent = '';
     let accThoughts = '';
     let hadError = false;
+    const rerunCtx = this.pendingRerunContext ? { ...this.pendingRerunContext } : null;
 
     try {
       const res = await fetch(`/api/chats/${chatId}/generate`, {
@@ -336,20 +385,68 @@ const App = {
       if (this.currentChatId === chatId) {
         if (hadError) {
           this.currentChat.messages = this.currentChat.messages.filter(m => m.id !== msgId);
+          if (rerunCtx) {
+            this.rollbackPendingRerun(rerunCtx);
+          }
         } else {
           try {
             this.currentChat = await this.api('GET', `/api/chats/${chatId}`);
+            if (!this.currentChat.branch_state || typeof this.currentChat.branch_state !== 'object') {
+              this.currentChat.branch_state = {};
+            }
+            if (rerunCtx) {
+              await this.commitPendingRerun(rerunCtx);
+            }
           } catch (e) { /* ignore */ }
           Chat.render();
         }
         this.updateTokenCount();
       }
+      this.pendingRerunContext = null;
     }
   },
 
   stopGeneration() {
     if (this.abortController) {
       this.abortController.abort();
+    }
+  },
+
+  async commitPendingRerun(ctx) {
+    if (!this.currentChat || !ctx) return;
+    const point = this.getBranchPoint(ctx.anchorId);
+    if (!point) return;
+    const anchorIdx = this.currentChat.messages.findIndex(m => m.id === ctx.anchorId);
+    if (anchorIdx === -1) return;
+    const tail = this._clone(this.currentChat.messages.slice(anchorIdx + 1));
+    point.branches[point.active].tail = tail;
+    await this.saveChat();
+  },
+
+  rollbackPendingRerun(ctx) {
+    if (!this.currentChat || !ctx) return;
+    const point = this.getBranchPoint(ctx.anchorId);
+    if (!point) return;
+    if (ctx.mode === 'branch') {
+      const idx = point.branches.findIndex(b => b.id === ctx.createdBranchId);
+      if (idx >= 0) {
+        point.branches.splice(idx, 1);
+        if (!point.branches.length) {
+          delete this.currentChat.branch_state[ctx.anchorId];
+          return;
+        }
+        point.active = Math.max(0, Math.min(point.active, point.branches.length - 1));
+      }
+    }
+    const anchorIdx = this.currentChat.messages.findIndex(m => m.id === ctx.anchorId);
+    if (anchorIdx !== -1) {
+      const activeTail = this._clone(point.branches[point.active].tail || []);
+      this.currentChat.messages = [
+        ...this.currentChat.messages.slice(0, anchorIdx + 1),
+        ...activeTail,
+      ];
+      this.saveChat();
+      Chat.render();
     }
   },
 
