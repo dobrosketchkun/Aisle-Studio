@@ -362,6 +362,35 @@ ul {
   justify-content: center;
 }
 
+.chat-font-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chat-font-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.chat-font-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.chat-font-indicator {
+  min-width: 18px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  user-select: none;
+}
+
 /* ============================================================
    MAIN CONTENT
    ============================================================ */
@@ -506,6 +535,23 @@ ul {
 
 .turn-role-label.user-label {
   color: #a0b4f0;
+}
+
+/* Chat text scaling (messages area only) */
+.chat-messages {
+  --chat-font-scale: 1;
+}
+
+.chat-messages .turn-role-label {
+  font-size: calc(12px * var(--chat-font-scale));
+}
+
+.chat-messages .markdown-content {
+  font-size: calc(14px * var(--chat-font-scale));
+}
+
+.chat-messages .thoughts-body .markdown-content {
+  font-size: calc(13px * var(--chat-font-scale));
 }
 
 /* Turn content area */
@@ -903,6 +949,53 @@ ul {
 
 .prompt-box:focus-within {
   border-color: var(--outline);
+}
+
+.prompt-box.collapsed {
+  gap: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.prompt-box.collapsed .prompt-textarea,
+.prompt-box.collapsed .pending-files {
+  display: none !important;
+}
+
+.chat-footer.collapsed .footer-fade {
+  display: none;
+}
+
+.chat-footer.collapsed .prompt-box {
+  display: none;
+}
+
+.prompt-restore-btn {
+  display: none;
+  margin: 0 auto 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  border: 1px solid var(--outline-subtle);
+  background: var(--surface-container);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.prompt-restore-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+  border-color: var(--outline);
+}
+
+.prompt-restore-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.chat-footer.collapsed .prompt-restore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .prompt-textarea {

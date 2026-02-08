@@ -12,6 +12,8 @@ const App = {
   pendingFiles: [],    // files uploaded but not yet sent with a message
   keyStatus: {},       // { provider: bool } -- which providers have keys configured
   theme: 'dark',
+  chatFontScale: 1,
+  promptCollapsed: false,
 
   /** API helpers */
   async api(method, path, body) {
@@ -52,6 +54,60 @@ const App = {
     const next = this.theme === 'light' ? 'dark' : 'light';
     this.applyTheme(next);
     localStorage.setItem('theme', next);
+  },
+
+  applyChatFontScale(scale) {
+    const clamped = Math.max(0.85, Math.min(1.35, Number(scale) || 1));
+    this.chatFontScale = Math.round(clamped * 100) / 100;
+    const messages = document.getElementById('chat-messages');
+    if (messages) {
+      messages.style.setProperty('--chat-font-scale', String(this.chatFontScale));
+    }
+    const indicator = document.getElementById('chat-font-indicator');
+    if (indicator) {
+      if (this.chatFontScale < 0.98) indicator.textContent = 'A-';
+      else if (this.chatFontScale > 1.02) indicator.textContent = 'A+';
+      else indicator.textContent = 'A';
+    }
+  },
+
+  initChatFontScale() {
+    const saved = parseFloat(localStorage.getItem('chatFontScale') || '1');
+    this.applyChatFontScale(saved);
+  },
+
+  adjustChatFontScale(delta) {
+    this.applyChatFontScale(this.chatFontScale + delta);
+    localStorage.setItem('chatFontScale', String(this.chatFontScale));
+  },
+
+  applyPromptCollapsed(collapsed) {
+    this.promptCollapsed = !!collapsed;
+    const footer = document.querySelector('.chat-footer');
+    if (footer) {
+      footer.classList.toggle('collapsed', this.promptCollapsed);
+    }
+    const promptBox = document.querySelector('.prompt-box');
+    if (promptBox) {
+      promptBox.classList.toggle('collapsed', this.promptCollapsed);
+    }
+    const icon = document.getElementById('prompt-toggle-icon');
+    if (icon) {
+      icon.textContent = this.promptCollapsed ? 'expand_less' : 'expand_more';
+    }
+    const btn = document.getElementById('btn-prompt-toggle');
+    if (btn) {
+      btn.title = this.promptCollapsed ? 'Show input' : 'Hide input';
+    }
+  },
+
+  initPromptCollapsed() {
+    this.applyPromptCollapsed(localStorage.getItem('promptCollapsed') === '1');
+  },
+
+  togglePromptCollapsed() {
+    this.applyPromptCollapsed(!this.promptCollapsed);
+    localStorage.setItem('promptCollapsed', this.promptCollapsed ? '1' : '0');
   },
 
   async loadChatList() {
@@ -649,6 +705,8 @@ const App = {
    ============================================================ */
 document.addEventListener('DOMContentLoaded', async () => {
   App.initTheme();
+  App.initChatFontScale();
+  App.initPromptCollapsed();
 
   // Sidebar toggle
   document.getElementById('btn-sidebar-toggle').addEventListener('click', () => {
@@ -723,6 +781,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const themeBtn = document.getElementById('btn-theme-toggle');
   if (themeBtn) {
     themeBtn.addEventListener('click', () => App.toggleTheme());
+  }
+
+  const decFontBtn = document.getElementById('btn-font-decrease');
+  const incFontBtn = document.getElementById('btn-font-increase');
+  if (decFontBtn) decFontBtn.addEventListener('click', () => App.adjustChatFontScale(-0.05));
+  if (incFontBtn) incFontBtn.addEventListener('click', () => App.adjustChatFontScale(0.05));
+
+  const promptToggleBtn = document.getElementById('btn-prompt-toggle');
+  if (promptToggleBtn) {
+    promptToggleBtn.addEventListener('click', () => App.togglePromptCollapsed());
+  }
+  const promptRestoreBtn = document.getElementById('btn-prompt-restore');
+  if (promptRestoreBtn) {
+    promptRestoreBtn.addEventListener('click', () => App.togglePromptCollapsed());
   }
 
   // Resizable right panel

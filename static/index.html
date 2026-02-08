@@ -83,6 +83,11 @@
       </div>
 
       <div class="sidebar-bottom">
+        <div class="chat-font-controls" title="Chat text size">
+          <button id="btn-font-decrease" class="chat-font-btn" aria-label="Decrease chat text size">-</button>
+          <span id="chat-font-indicator" class="chat-font-indicator">A</span>
+          <button id="btn-font-increase" class="chat-font-btn" aria-label="Increase chat text size">+</button>
+        </div>
         <button id="btn-theme-toggle" class="nav-item nav-item-theme" title="Toggle theme">
           <span id="theme-icon" class="material-symbols-outlined">light_mode</span>
           <span class="nav-item-text">Theme</span>
@@ -131,6 +136,9 @@
           <div id="pending-files" class="pending-files" style="display:none;"></div>
           <div class="prompt-buttons">
             <div class="prompt-buttons-left">
+              <button id="btn-prompt-toggle" class="prompt-btn" title="Hide input">
+                <span id="prompt-toggle-icon" class="material-symbols-outlined">expand_more</span>
+              </button>
               <button id="btn-api-key" class="prompt-btn" title="API Key">
                 <span class="material-symbols-outlined">key_off</span>
               </button>
@@ -146,6 +154,9 @@
             </div>
           </div>
         </div>
+        <button id="btn-prompt-restore" class="prompt-restore-btn" title="Show input" aria-label="Show input">
+          <span class="material-symbols-outlined">expand_less</span>
+        </button>
       </footer>
     </main>
 
