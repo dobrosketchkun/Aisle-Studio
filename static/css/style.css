@@ -761,7 +761,9 @@ ul {
 }
 
 .thoughts-section.expanded .thoughts-body {
-  max-height: 2000px;
+  max-height: min(68vh, 960px);
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px 14px;
 }
 
