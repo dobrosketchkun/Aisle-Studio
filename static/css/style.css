@@ -978,6 +978,7 @@ ul {
   border: 2px solid var(--outline-accent);
   border-radius: 12px;
   padding: 12px;
+  position: relative;
 }
 
 .turn-edit-textarea {
@@ -997,6 +998,27 @@ ul {
   display: flex;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+.turn-edit-actions-top {
+  margin-top: 0;
+  margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: fit-content;
+  margin-left: auto;
+  padding: 0;
+}
+
+.turn-edit-actions-bottom {
+  margin-top: 8px;
+}
+
+.turn-edit-actions-top .btn-stop-edit {
+  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  border: 1px solid var(--outline-subtle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .btn-stop-edit {

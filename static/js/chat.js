@@ -550,9 +550,12 @@ const Chat = {
 
     content.classList.add('editing');
     content.innerHTML = `
+      <div class="turn-edit-actions turn-edit-actions-top">
+        <button class="btn-stop-edit" onclick="Chat.stopEdit('${msgId}')">Stop editing</button>
+      </div>
       <textarea class="turn-edit-textarea">${this.escapeHtml(msg.content)}</textarea>
-      <div class="turn-edit-actions">
-        <button class="btn-stop-edit" onclick="Chat.stopEdit('${msgId}', this)">Stop editing</button>
+      <div class="turn-edit-actions turn-edit-actions-bottom">
+        <button class="btn-stop-edit" onclick="Chat.stopEdit('${msgId}')">Stop editing</button>
       </div>`;
 
     const textarea = content.querySelector('textarea');
@@ -565,12 +568,13 @@ const Chat = {
   },
 
   /** Stop editing, save changes */
-  stopEdit(msgId, btn) {
+  stopEdit(msgId) {
     const turn = document.querySelector(`.chat-turn[data-msg-id="${msgId}"]`);
     if (!turn) return;
     const textarea = turn.querySelector('.turn-edit-textarea');
     if (textarea) {
       const newContent = textarea.value;
+      this._preserveScrollOnNextRender = true;
       App.updateMessage(msgId, newContent);
     }
   },
