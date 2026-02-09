@@ -105,6 +105,17 @@ body.theme-light .toggle-switch input:checked + .toggle-slider::before {
   background: #ffffff;
 }
 
+/* Keep white label text readable on blue buttons/chips in light mode */
+body.theme-light .nav-item-new-chat:hover,
+body.theme-light .run-btn:hover,
+body.theme-light .btn-primary:hover,
+body.theme-light .search-mode-btn.active:hover,
+body.theme-light .history-mode-btn.active:hover,
+body.theme-light .history-sort-btn.active:hover {
+  background: #2458c8;
+  color: #ffffff;
+}
+
 /* --- Reset & Base --- */
 *,
 *::before,

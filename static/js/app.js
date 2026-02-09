@@ -44,6 +44,13 @@ const App = {
     const normalized = theme === 'light' ? 'light' : 'dark';
     this.theme = normalized;
     document.body.classList.toggle('theme-light', normalized === 'light');
+    const hljsDark = document.getElementById('hljs-theme-dark');
+    const hljsLight = document.getElementById('hljs-theme-light');
+    if (hljsDark && hljsLight) {
+      const isLight = normalized === 'light';
+      hljsDark.disabled = isLight;
+      hljsLight.disabled = !isLight;
+    }
     const icon = document.getElementById('theme-icon');
     if (icon) icon.textContent = normalized === 'light' ? 'dark_mode' : 'light_mode';
   },
