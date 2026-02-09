@@ -1167,10 +1167,16 @@ const Chat = {
   },
 
   _estimateTokens(file) {
+    const serverEstimate = Number(file?.estimated_tokens || file?.estimatedTokens || 0);
+    if (serverEstimate > 0) {
+      return Math.round(serverEstimate);
+    }
+
     const type = (file.type || '');
+    const size = Number(file.size || 0);
     if (type.startsWith('image/')) {
       // Rough heuristic based on file size
-      return Math.max(258, Math.round(file.size / 200));
+      return Math.max(258, Math.round(size / 200));
     }
     if (type.startsWith('video/')) {
       // Use video settings if available, otherwise estimate from duration
@@ -1189,10 +1195,39 @@ const Chat = {
       const duration = file._duration || 0;
       return duration > 0 ? Math.round(duration * 25) : 0;
     }
-    if (type.startsWith('text/') || type.includes('json') || type.includes('xml')) {
-      return Math.round(file.size / 4);
+    if (this._isTextLikeFile(file)) {
+      return Math.max(1, Math.round(size / 4));
     }
     return 0;
+  },
+
+  _isTextLikeFile(file) {
+    const type = String(file?.type || '').toLowerCase();
+    const name = String(file?.name || file?.filename || '').toLowerCase();
+    const ext = name.includes('.') ? name.split('.').pop() : '';
+
+    if (
+      type.startsWith('text/')
+      || type.includes('json')
+      || type.includes('xml')
+      || type.includes('yaml')
+      || type.includes('csv')
+      || type.includes('javascript')
+      || type.includes('typescript')
+      || type.includes('markdown')
+    ) {
+      return true;
+    }
+
+    const textExts = new Set([
+      'txt', 'md', 'markdown', 'csv', 'log', 'json', 'xml', 'yaml', 'yml',
+      'toml', 'ini', 'cfg', 'conf',
+      'py', 'js', 'ts', 'jsx', 'tsx', 'html', 'htm', 'css', 'scss', 'sass',
+      'java', 'kt', 'go', 'rs', 'rb', 'php', 'swift', 'dart', 'lua', 'r',
+      'sh', 'bash', 'zsh', 'ps1', 'bat', 'sql', 'c', 'cpp', 'h', 'hpp',
+      'vue', 'svelte', 'astro', 'env', 'gitignore',
+    ]);
+    return textExts.has(ext);
   },
 
   /** Generate thumbnails for video files in chat messages */

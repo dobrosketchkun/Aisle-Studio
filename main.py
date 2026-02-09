@@ -2,6 +2,7 @@ import base64
 import json
 import mimetypes
 import os
+import re
 import shutil
 import time
 import uuid
@@ -36,6 +37,11 @@ _ENV_KEY_MAP = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
 }
+
+try:
+    import tiktoken  # type: ignore
+except Exception:
+    tiktoken = None
 
 
 def _load_keys() -> dict:
@@ -293,6 +299,31 @@ def _is_text_file(filename: str, mime_type: str) -> bool:
     if any(k in mime_type for k in ("json", "xml", "yaml", "javascript", "typescript")):
         return True
     return False
+
+
+def _estimate_text_tokens(text: str) -> int:
+    """Best-effort token estimate for text content."""
+    if not text:
+        return 0
+
+    if tiktoken is not None:
+        try:
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(text))
+        except Exception:
+            pass
+
+    # Fallback heuristic that is more language-agnostic than char/4.
+    utf8_bytes = len(text.encode("utf-8", errors="ignore"))
+    words = len(re.findall(r"\S+", text))
+    cjk_chars = len(re.findall(r"[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]", text))
+    estimate = max(
+        utf8_bytes / 3.8,
+        words * 1.3,
+        cjk_chars * 1.6,
+        len(text) / 4.0,
+    )
+    return max(1, int(round(estimate)))
 
 
 def _openrouter_messages(
@@ -991,12 +1022,20 @@ async def upload_file(chat_id: str, file: UploadFile):
     file_path.write_bytes(content)
 
     mime_type = file.content_type or mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    estimated_tokens = 0
+    if _is_text_file(safe_name, mime_type):
+        try:
+            text = content.decode("utf-8", errors="replace")
+            estimated_tokens = _estimate_text_tokens(text)
+        except Exception:
+            estimated_tokens = 0
     return {
         "id": file_id,
         "name": safe_name,
         "type": mime_type,
         "size": len(content),
         "filename": saved_name,
+        "estimated_tokens": estimated_tokens,
     }
 
 
