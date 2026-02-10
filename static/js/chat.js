@@ -109,6 +109,51 @@ const Chat = {
     return html;
   },
 
+  /** Detect replies that are exactly one fenced code block. */
+  _extractSingleOuterCodeBlock(text) {
+    if (typeof text !== 'string') return null;
+    const trimmed = text.trim();
+    // Strict full-message fence match: ```lang ... ```
+    const match = trimmed.match(/^```([^\n`]*)\n([\s\S]*?)\n?```$/);
+    if (!match) return null;
+    return {
+      lang: (match[1] || '').trim() || 'plaintext',
+      code: match[2] || '',
+    };
+  },
+
+  /** Render code block as raw code (no markdown parsing of inner content). */
+  _renderRawCodeBlock(code, lang = 'plaintext') {
+    const language = lang || 'plaintext';
+    let highlighted;
+    try {
+      highlighted = hljs.highlight(code, { language, ignoreIllegals: true }).value;
+    } catch {
+      highlighted = hljs.highlightAuto(code).value;
+    }
+    return `
+      <div class="code-block-wrapper">
+        <div class="code-block-header">
+          <div class="code-block-lang">
+            <span class="material-symbols-outlined">code</span>
+            <span>${this.escapeHtml(language)}</span>
+          </div>
+          <div class="code-block-actions">
+            <button onclick="Chat.downloadCode(this, '${this.escapeHtml(language)}')" title="Download">
+              <span class="material-symbols-outlined">download</span>
+            </button>
+            <button onclick="Chat.copyCode(this)" title="Copy code">
+              <span class="material-symbols-outlined">content_copy</span>
+            </button>
+            <button onclick="Chat.toggleCodeBlock(this)" title="Collapse">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
+          </div>
+        </div>
+        <pre><code class="hljs language-${this.escapeHtml(language)}" data-raw="${encodeURIComponent(code)}">${highlighted}</code></pre>
+      </div>`;
+  },
+
   /** Render mermaid diagrams in the DOM (call after innerHTML is set) */
   _renderMermaidInContainer(container) {
     if (typeof mermaid === 'undefined') return;
@@ -184,7 +229,14 @@ const Chat = {
     const hasContent = msg.content && msg.content.trim().length > 0;
     let contentHtml = '';
     if (isUser) {
-      if (hasContent) contentHtml = `<div class="markdown-content user-text">${this._renderLatex(marked.parse(msg.content))}</div>`;
+      if (hasContent) {
+        const strictCode = this._extractSingleOuterCodeBlock(msg.content);
+        if (strictCode) {
+          contentHtml = `<div class="markdown-content user-text">${this._renderRawCodeBlock(strictCode.code, strictCode.lang)}</div>`;
+        } else {
+          contentHtml = `<div class="markdown-content user-text">${this._renderLatex(marked.parse(msg.content))}</div>`;
+        }
+      }
     } else {
       contentHtml = this.renderModelContent(msg);
     }
@@ -253,6 +305,10 @@ const Chat = {
     // Thoughts section — collapsed by default, with preview snippet
     if (msg.thoughts) {
       const preview = msg.thoughts.replace(/\n/g, ' ').substring(0, 80) + (msg.thoughts.length > 80 ? '...' : '');
+      const strictThoughtsCode = this._extractSingleOuterCodeBlock(msg.thoughts);
+      const thoughtsBody = strictThoughtsCode
+        ? this._renderRawCodeBlock(strictThoughtsCode.code, strictThoughtsCode.lang)
+        : `<div class="markdown-content">${this._renderLatex(marked.parse(msg.thoughts))}</div>`;
       html += `
         <div class="thoughts-section" onclick="Chat.toggleThoughts(this)">
           <div class="thoughts-header">
@@ -269,13 +325,18 @@ const Chat = {
             <span class="material-symbols-outlined thoughts-expand-icon">expand_more</span>
           </div>
           <div class="thoughts-body">
-            <div class="markdown-content">${this._renderLatex(marked.parse(msg.thoughts))}</div>
+            ${thoughtsBody}
           </div>
         </div>`;
     }
 
     // Main content
-    html += `<div class="markdown-content">${this._renderLatex(marked.parse(msg.content))}</div>`;
+    const strictMainCode = this._extractSingleOuterCodeBlock(msg.content || '');
+    if (strictMainCode) {
+      html += `<div class="markdown-content">${this._renderRawCodeBlock(strictMainCode.code, strictMainCode.lang)}</div>`;
+    } else {
+      html += `<div class="markdown-content">${this._renderLatex(marked.parse(msg.content))}</div>`;
+    }
     return html;
   },
 
